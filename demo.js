@@ -49,9 +49,9 @@ async function run() {
   let lastRenderTime = performance.now();
 
   const LENGTH_1 = 5.0,
-    LENGTH_2 = 4.0,
+    LENGTH_2 = 2.0,
     MASS_1 = 1.0,
-    MASS_2 = 1.0,
+    MASS_2 = 5.0,
     G = 9.81,
     DAMPING = 0.0;
 

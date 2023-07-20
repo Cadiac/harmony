@@ -58,20 +58,32 @@ float sdPlane(vec3 p, vec3 n, float h) { return dot(p, n) + h; }
 // https://iquilezles.org/articles/distfunctions/, MIT
 float sdSphere(vec3 p, float s) { return length(p) - s; }
 
-float map(in vec3 p) {
+float sdPendulum(in vec3 p) {
   vec3 offset = vec3(0.0, 9., 0.0);
   vec3 p1 = vec3(u_p1.x, u_p1.y, 0.0) + offset;
   vec3 p2 = vec3(u_p2.x, u_p2.y, 0.0) + offset;
 
   float ball1 = sdSphere(p - p1, 0.2);
-  float ball2 = sdSphere(p - p2, 0.2);
+  float ball2 = sdSphere(p - p2, 1.0);
 
   float line1 = sdCapsule(p, offset, p1, 0.05);
   float line2 = sdCapsule(p, p1, p2, 0.05);
 
-  float g = sdPlane(p, vec3(0., 1., 0.), 2.0);
+  return min(min(ball1, ball2), min(line1, line2));
+}
 
-  return min(g, min(min(ball1, ball2), min(line1, line2)));
+float map(in vec3 p) {
+  vec3 c = vec3(30.0, 50.0, 2.1);
+  vec3 q = p - c * clamp(floor((p / c) + 0.5), -20.0, 20.0);
+
+  float pendulum1 = sdPendulum(q);
+  float pendulum2 = sdPendulum(q - vec3(0.0, 2.5, 0.0));
+  float pendulum3 = sdPendulum(q - vec3(0.0, 5.0, 0.0));
+  float pendulum4 = sdPendulum(q - vec3(0.0, 7.5, 0.0));
+
+  float ground = sdPlane(p, vec3(0., 1., 0.), 2.0);
+
+  return min(ground, min(min(pendulum1, pendulum2), min(pendulum3, pendulum4)));
 }
 
 vec3 fog(in vec3 color, float dist) {
@@ -126,7 +138,7 @@ vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 material) {
   float dotNS = dot(n, sun);
   vec3 sunLight = vec3(0.0);
   if (dotNS > 0.0) {
-    sunLight = clamp(SUN_COLOR * dotNS * softShadows(sun, p, 24.0), 0.0, 1.0);
+    sunLight = clamp(SUN_COLOR * dotNS * softShadows(sun, p, 100.0), 0.0, 1.0);
   }
 
   vec3 skyLight =
@@ -188,7 +200,7 @@ void main() {
   //                    4. + sin(u_time / (10. * SPEED)),
   //                    -20. + 20. * cos(u_time / (20. * SPEED)));
 
-  vec3 camera = vec3(0, 10, 30);
+  vec3 camera = vec3(20, 2, 0);
   vec3 target = vec3(0, 7, 0);
 
   // mat4 viewToWorld = lookAt(camera, target, normalize(vec3(1. - sin(u_time /
