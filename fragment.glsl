@@ -22,6 +22,29 @@ const vec3 SKY_COLOR = vec3(0.9, 0.8, 0.7);
 const vec3 FOG_COLOR = vec3(0.8, 0.7, 0.6);
 const vec3 COLOR_SHIFT = vec3(1.0, 0.92, 1.0);
 
+// Translations
+// http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
+mat3 tRotateX(float theta) {
+  float s = sin(theta);
+  float c = cos(theta);
+
+  return mat3(vec3(1, 0, 0), vec3(0, c, -s), vec3(0, s, c));
+}
+
+mat3 tRotateY(float theta) {
+  float s = sin(theta);
+  float c = cos(theta);
+
+  return mat3(vec3(c, 0, s), vec3(0, 1, 0), vec3(-s, 0, c));
+}
+
+mat3 tRotateZ(float theta) {
+  float s = sin(theta);
+  float c = cos(theta);
+
+  return mat3(vec3(c, -s, 0), vec3(s, c, 0), vec3(0, 0, 1));
+}
+
 // From https://www.shadertoy.com/view/ldl3W8
 vec2 hash2(vec2 p) {
   return fract(
@@ -74,22 +97,34 @@ float sdPendulum(in vec3 p) {
   return min(min(ball1, ball2), min(line1, line2));
 }
 
+// https://iquilezles.org/articles/distfunctions/, MIT
+float sdCylinder(vec3 p, vec3 c) { return length(p.xz - c.xy) - c.z; }
+
 float map(in vec3 p) {
   vec3 c = vec3(30.0, 50.0, 2.1);
   vec3 q = p - c * clamp(floor((p / c) + 0.5), -20.0, 20.0);
+  vec3 q2 = q - vec3(0.0, 2.5, 0.0);
+  vec3 q3 = q - vec3(0.0, 5.0, 0.0);
+  vec3 q4 = q - vec3(0.0, 7.5, 0.0);
 
   // float pendulum = sdPendulum(p);
 
   float pendulum1 = sdPendulum(q);
-  float pendulum2 = sdPendulum(q - vec3(0.0, 2.5, 0.0));
-  float pendulum3 = sdPendulum(q - vec3(0.0, 5.0, 0.0));
-  float pendulum4 = sdPendulum(q - vec3(0.0, 7.5, 0.0));
+  float pendulum2 = sdPendulum(q2);
+  float pendulum3 = sdPendulum(q3);
+  float pendulum4 = sdPendulum(q4);
+
+  float pipe1 = sdCylinder(tRotateX(PI * 0.5) * q, vec3(0.0, -9.0, 0.1));
+  float pipe2 = sdCylinder(tRotateX(PI * 0.5) * q2, vec3(0.0, -9.0, 0.1));
+  float pipe3 = sdCylinder(tRotateX(PI * 0.5) * q3, vec3(0.0, -9.0, 0.1));
+  float pipe4 = sdCylinder(tRotateX(PI * 0.5) * q4, vec3(0.0, -9.0, 0.1));
 
   float ground = sdPlane(p, vec3(0., 1., 0.), 2.0);
 
   // return min(ground, pendulum);
 
-  return min(ground, min(min(pendulum1, pendulum2), min(pendulum3, pendulum4)));
+  return min(min(min(min(pipe1, pipe2), min(pipe3, pipe4)), ground),
+             min(min(pendulum1, pendulum2), min(pendulum3, pendulum4)));
 }
 
 vec3 fog(in vec3 color, float dist) {
@@ -168,7 +203,7 @@ vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 material) {
   float dotNS = dot(n, sun);
   vec3 sunLight = vec3(0.0);
   if (dotNS > 0.0) {
-    sunLight = clamp(SUN_COLOR * dotNS * softShadows(sun, p, 100.0), 0.0, 1.0);
+    sunLight = clamp(SUN_COLOR * dotNS * softShadows(sun, p, 10.0), 0.0, 1.0);
   }
 
   vec3 skyLight =
@@ -226,11 +261,11 @@ vec3 rayDirection(float fov, vec2 dimensions, vec2 fragCoord) {
 void main() {
   vec3 viewDir = rayDirection(FOV, u_resolution, gl_FragCoord.xy);
 
-  // vec3 camera = vec3(-10. + 20. * sin(u_time / (20. * SPEED)),
-  //                    4. + sin(u_time / (10. * SPEED)),
-  //                    -20. + 20. * cos(u_time / (20. * SPEED)));
+  vec3 camera = vec3(-10. + 20. * sin(u_time / (20. * SPEED)),
+                     4. + sin(u_time / (10. * SPEED)),
+                     -20. + 20. * cos(u_time / (20. * SPEED)));
 
-  vec3 camera = vec3(20, 2, 0);
+  // vec3 camera = vec3(20, 15, 20);
   vec3 target = vec3(0, 7, 0);
 
   // mat4 viewToWorld = lookAt(camera, target, normalize(vec3(1. - sin(u_time /
