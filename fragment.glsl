@@ -6,6 +6,8 @@ uniform sampler2D u_audio;
 
 uniform vec2 u_p1;
 uniform vec2 u_p2;
+uniform float u_r1;
+uniform float u_r2;
 
 const int MAX_MARCHING_STEPS = 400;
 const float MIN_DIST = 0.0;
@@ -15,10 +17,10 @@ const float EPSILON = 0.00001;
 const float SPEED = 500.0;
 const float PI = 3.14159;
 
-const vec3 SUN_COLOR = vec3(0.9, 0.8, 0.7);
-const vec3 SKY_COLOR = vec3(0.5, 0.4, 0.3);
-const vec3 FOG_COLOR = vec3(0.5, 0.4, 0.3);
-const vec3 COLOR_SHIFT = vec3(1.0, 1.0, 1.0);
+const vec3 SUN_COLOR = vec3(0.9, 0.9, 0.9);
+const vec3 SKY_COLOR = vec3(0.9, 0.8, 0.7);
+const vec3 FOG_COLOR = vec3(0.8, 0.7, 0.6);
+const vec3 COLOR_SHIFT = vec3(1.0, 0.92, 1.0);
 
 // From https://www.shadertoy.com/view/ldl3W8
 vec2 hash2(vec2 p) {
@@ -63,8 +65,8 @@ float sdPendulum(in vec3 p) {
   vec3 p1 = vec3(u_p1.x, u_p1.y, 0.0) + offset;
   vec3 p2 = vec3(u_p2.x, u_p2.y, 0.0) + offset;
 
-  float ball1 = sdSphere(p - p1, 0.2);
-  float ball2 = sdSphere(p - p2, 1.0);
+  float ball1 = sdSphere(p - p1, u_r1);
+  float ball2 = sdSphere(p - p2, u_r2);
 
   float line1 = sdCapsule(p, offset, p1, 0.05);
   float line2 = sdCapsule(p, p1, p2, 0.05);
@@ -76,6 +78,8 @@ float map(in vec3 p) {
   vec3 c = vec3(30.0, 50.0, 2.1);
   vec3 q = p - c * clamp(floor((p / c) + 0.5), -20.0, 20.0);
 
+  // float pendulum = sdPendulum(p);
+
   float pendulum1 = sdPendulum(q);
   float pendulum2 = sdPendulum(q - vec3(0.0, 2.5, 0.0));
   float pendulum3 = sdPendulum(q - vec3(0.0, 5.0, 0.0));
@@ -83,12 +87,38 @@ float map(in vec3 p) {
 
   float ground = sdPlane(p, vec3(0., 1., 0.), 2.0);
 
+  // return min(ground, pendulum);
+
   return min(ground, min(min(pendulum1, pendulum2), min(pendulum3, pendulum4)));
 }
 
 vec3 fog(in vec3 color, float dist) {
   vec3 e = exp2(-dist * 0.055 * COLOR_SHIFT);
   return color * e + (1.0 - e) * FOG_COLOR;
+}
+
+vec3 sky(in vec3 camera, in vec3 dir, in vec3 sun) {
+  // Deeper blue when looking up
+  vec3 color = SKY_COLOR - 0.5 * dir.y;
+
+  // Fade to fog further away
+  float dist = (25000. - camera.y) / dir.y;
+  vec3 e = exp2(-abs(dist) * 0.00001 * COLOR_SHIFT);
+  color = color * e + (1.0 - e) * FOG_COLOR;
+
+  // Sun
+  float dotSun = dot(sun, dir);
+  if (dotSun > 0.9999) {
+    float h = dir.y - sun.y;
+    color = SUN_COLOR;
+  }
+
+  // Sun glare
+  if (dotSun > 0.9998) {
+    color = mix(color, SUN_COLOR, (dotSun - 0.9998) / (1. - 0.9998));
+  }
+
+  return color;
 }
 
 float softShadows(in vec3 sunDir, in vec3 p, float k) {
@@ -212,22 +242,24 @@ void main() {
 
   vec3 sun = normalize(vec3(0.0, 10.0, 10.0));
 
+  vec3 color = vec3(0.);
+
   if (dist < 0.0) {
-    gl_FragColor = vec4(SKY_COLOR, 1.0);
+    color = sky(camera, worldDir, sun);
   } else {
-    vec3 material = vec3(1.0, 1.0, 1.0);
+    // vec3 material = vec3(1.0, 1.0, 1.0);
+    vec3 material = vec3(0.2, 0.0, 0.0);
 
     vec3 p = camera + dist * worldDir;
 
-    vec3 color = lightning(sun, p, camera, material);
+    color = lightning(sun, p, camera, material);
     color = fog(color, dist);
-
-    color = pow(color, vec3(1.0, 0.92, 1.0));
-    color *= vec3(1.02, 0.99, 0.9);
-    color.z = color.z + 0.1;
-
-    color = smoothstep(0.0, 1.0, color);
-
-    gl_FragColor = vec4(color, 1.0);
   }
+
+  color = pow(color, vec3(1.0, 0.92, 1.0));
+  color *= vec3(1.02, 0.99, 0.9);
+  color.z = color.z + 0.1;
+
+  color = smoothstep(0.0, 1.0, color);
+  gl_FragColor = vec4(color, 1.0);
 }

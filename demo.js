@@ -53,7 +53,7 @@ async function run() {
     MASS_1 = 1.0,
     MASS_2 = 5.0,
     G = 9.81,
-    DAMPING = 0.0;
+    DAMPING = 0.1;
 
   let pendulum = {
     angle1: Math.PI * 1.0,
@@ -189,6 +189,14 @@ async function run() {
 
       gl.uniform2f(gl.getUniformLocation(program, "u_p1"), pos1.x, pos1.y);
       gl.uniform2f(gl.getUniformLocation(program, "u_p2"), pos2.x, pos2.y);
+      gl.uniform1f(
+        gl.getUniformLocation(program, "u_r1"),
+        0.2 * Math.pow(MASS_1, 0.333)
+      );
+      gl.uniform1f(
+        gl.getUniformLocation(program, "u_r2"),
+        0.2 * Math.pow(MASS_2, 0.333)
+      );
 
       // FFT
       analyser.getByteFrequencyData(fft);
