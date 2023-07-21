@@ -1,40 +1,278 @@
-function play() {
-  // create an AudioContext object
-  const audioContext = new AudioContext();
-  const analyser = audioContext.createAnalyser();
-  analyser.connect(audioContext.destination);
-  // analyser.fftSize = 128;
-  analyser.smoothingTimeConstant = 0.75;
+function createOscillator(audioContext, octave, destination) {
+  const oscillator = new OscillatorNode(audioContext);
+  // oscillator.type = "sine";
+  oscillator.frequency.value = 440 * Math.pow(2, octave - 4); // A
+  oscillator.detune.value = 0;
 
-  // Make a audio node
-  const audio = new Audio();
-  audio.loop = true;
-  audio.autoplay = true;
+  const gainNode = new GainNode(audioContext);
+  gainNode.gain.value = 0.5;
 
-  // this line is only needed if the music you are trying to play is on a
-  // different server than the page trying to play it.
-  // It asks the server for permission to use the music. If the server says "no"
-  // then you will not be able to play the music
-  // Note if you are using music from the same domain
-  // **YOU MUST REMOVE THIS LINE** or your server must give permission.
-  audio.crossOrigin = "anonymous";
-  audio.addEventListener("canplay", handleCanplay);
+  // OSC -> Gain -> Destination
+  oscillator.connect(gainNode);
+  gainNode.connect(destination);
 
-  // audio.src =
-  //   "https://twgljs.org/examples/sounds/DOCTOR%20VOX%20-%20Level%20Up.mp3";
-  // audio.load();
+  oscillator.start();
 
-  function handleCanplay() {
-    // connect the audio element to the analyser node and the analyser node
-    // to the main Web Audio context
-    const source = audioContext.createMediaElementSource(audio);
-    source.connect(analyser);
-  }
-
-  return analyser;
+  return {
+    osc: oscillator,
+    gain: gainNode,
+    octave,
+  };
 }
 
+function createModulator(audioContext, destinations, enabled, type) {
+  const lfo = audioContext.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = 5;
+  lfo.start();
+
+  const noise = noiseGenerator(audioContext);
+  noise.start();
+
+  const gainNode = audioContext.createGain();
+  gainNode.gain.value = 5;
+
+  // OSC -> Gain -> Destination.frequency
+  if (enabled) {
+    if (type === "lfo") {
+      lfo.connect(gainNode);
+    } else {
+      noise.connect(gainNode);
+    }
+  }
+
+  destinations.forEach((destination) => gainNode.connect(destination));
+
+  return {
+    enabled,
+    type,
+    lfo,
+    noise,
+    gain: gainNode,
+  };
+}
+
+function noiseGenerator(audioContext) {
+  const bufferSize = audioContext.sampleRate * 2; // 2 seconds of audio
+  const buffer = audioContext.createBuffer(
+    1,
+    bufferSize,
+    audioContext.sampleRate
+  );
+
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    channelData[i] = Math.random() * 2 - 1;
+  }
+
+  const noiseGeneratorNode = audioContext.createBufferSource();
+  noiseGeneratorNode.buffer = buffer;
+  noiseGeneratorNode.loop = true;
+
+  return noiseGeneratorNode;
+}
+
+function createWhiteNoise(audioContext, destinations) {
+  const noiseGeneratorNode = noiseGenerator(audioContext);
+
+  const gainNode = new GainNode(audioContext);
+  gainNode.gain.value = 0.5;
+
+  // Noise generator -> Gain -> Destination
+  // NOTE: noiseGeneratorNode is disconnected by default
+  destinations.forEach((destination) => gainNode.connect(destination));
+
+  noiseGeneratorNode.start();
+
+  return {
+    enabled: false,
+    generator: noiseGeneratorNode,
+    gain: gainNode,
+  };
+}
+
+function createPinkNoise(audioContext, destinations) {
+  const bufferSize = audioContext.sampleRate * 2; // 2 seconds of audio
+  const noiseBuffer = audioContext.createBuffer(
+    1,
+    bufferSize,
+    audioContext.sampleRate
+  );
+
+  // Based on https://noisehack.com/generate-noise-web-audio-api/
+  // which in turn is based on "Paul Kellet’s refined method", now 404
+  const b = [0, 0, 0, 0, 0, 0, 0];
+  const channelData = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+
+    b[0] = 0.99886 * b[0] + white * 0.0555179;
+    b[1] = 0.99332 * b[1] + white * 0.0750759;
+    b[2] = 0.969 * b[2] + white * 0.153852;
+    b[3] = 0.8665 * b[3] + white * 0.3104856;
+    b[4] = 0.55 * b[4] + white * 0.5329522;
+    b[5] = -0.7616 * b[5] - white * 0.016898;
+
+    channelData[i] =
+      b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + white * 0.5362;
+    channelData[i] *= 0.11; // (roughly) compensate for gain
+    b[6] = white * 0.115926;
+  }
+
+  // Connect the noise buffer to the filter
+  const noiseGeneratorNode = audioContext.createBufferSource();
+  noiseGeneratorNode.buffer = noiseBuffer;
+  noiseGeneratorNode.loop = true;
+
+  // Gain node to control volume
+  const gainNode = new GainNode(audioContext);
+  gainNode.gain.value = 0.5;
+
+  // Noise generator -> Gain -> Destination
+  // NOTE: noiseGeneratorNode is disconnected by default
+  destinations.forEach((destination) => gainNode.connect(destination));
+
+  noiseGeneratorNode.start();
+
+  return {
+    enabled: false,
+    generator: noiseGeneratorNode,
+    gain: gainNode,
+  };
+}
+
+function updateNote(synth, angularVelocity1, angularVelocity2) {
+  synth.adsr.gainNode.gain.cancelScheduledValues(
+    synth.audioContext.currentTime
+  );
+  synth.echo.feedbackGainNode.gain.cancelScheduledValues(
+    synth.audioContext.currentTime
+  );
+
+  synth.oscillators[0].osc.frequency.cancelScheduledValues(
+    synth.audioContext.currentTime
+  );
+
+  synth.oscillators[0].osc.frequency.setValueAtTime(
+    10 * angularVelocity1,
+    synth.audioContext.currentTime
+  );
+
+  // synth.oscillators[0].gain.gain.setValueAtTime(
+  //   Math.pow(Math.abs(angularVelocity1), 0.1),
+  //   synth.audioContext.currentTime
+  // );
+
+  synth.oscillators[1].osc.frequency.cancelScheduledValues(
+    synth.audioContext.currentTime
+  );
+
+  synth.oscillators[1].osc.frequency.setValueAtTime(
+    40 * angularVelocity2,
+    synth.audioContext.currentTime
+  );
+
+  // synth.oscillators[1].gain.gain.setValueAtTime(
+  //   Math.pow(Math.abs(angularVelocity2), 0.1),
+  //   synth.audioContext.currentTime
+  // );
+
+  synth.adsr.gainNode.gain.setValueAtTime(1, synth.audioContext.currentTime);
+}
+
+function initializeSynth() {
+  const audioContext = new AudioContext();
+
+  const analyser = audioContext.createAnalyser();
+  analyser.connect(audioContext.destination);
+  analyser.smoothingTimeConstant = 0.75;
+  // analyser.fftSize = 128;
+
+  const volumeNode = audioContext.createGain();
+  const adsrGainNode = audioContext.createGain();
+  const lowpassFilterNode = audioContext.createBiquadFilter();
+  const delayNode = audioContext.createDelay();
+  const delayFeedbackGainNode = audioContext.createGain();
+
+  // Connections:
+  // OSC - -> ADSR - - - > Lowpass -> Volume -> Destination
+  // Noise -^  v                ^
+  //           Delay <-> Feedback
+  adsrGainNode.connect(lowpassFilterNode);
+  adsrGainNode.connect(delayNode);
+  delayNode.connect(delayFeedbackGainNode);
+  delayFeedbackGainNode.connect(delayNode);
+  delayFeedbackGainNode.connect(lowpassFilterNode);
+  lowpassFilterNode.connect(volumeNode);
+  volumeNode.connect(analyser);
+
+  const oscillators = [
+    createOscillator(audioContext, 4, adsrGainNode, true),
+    createOscillator(audioContext, 4, adsrGainNode, true),
+  ];
+
+  const modulator = createModulator(
+    audioContext,
+    oscillators.map((o) => o.osc.frequency),
+    false,
+    "lfo"
+  );
+
+  // Master volume
+  const volume = 0.8;
+  volumeNode.gain.value = volume;
+
+  // Lowpass filter
+  lowpassFilterNode.type = "lowpass";
+  lowpassFilterNode.frequency.value = (0.1 * audioContext.sampleRate) / 2;
+  lowpassFilterNode.Q.value = 10;
+
+  // ADSR
+  adsrGainNode.gain.value = 0.0;
+
+  // Delay
+  delayNode.delayTime.value = 0.2;
+  delayFeedbackGainNode.gain.value = 0.3;
+
+  return {
+    analyser,
+    playingNotes: new Set(),
+    audioContext,
+    volume: {
+      gainNode: volumeNode,
+    },
+    oscillators,
+    pitch: 0,
+    glide: 0.5,
+    modulator,
+    noise: createWhiteNoise(audioContext, [adsrGainNode]),
+    lowpass: {
+      filterNode: lowpassFilterNode,
+    },
+    adsr: {
+      gainNode: adsrGainNode,
+      attack: 0.1,
+      decay: 0.2,
+      sustain: 0.3,
+      release: 0.4,
+      maxDuration: 2,
+    },
+    echo: {
+      delayNode,
+      feedbackGainNode: delayFeedbackGainNode,
+    },
+  };
+}
+
+running = false;
+
 async function run() {
+  if (running) {
+    return;
+  }
+  running = true;
+
   const vs = `attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}`;
   const res = await fetch("/fragment.glsl");
   const fs = await res.text();
@@ -42,6 +280,7 @@ async function run() {
   const programs = [];
 
   let gui;
+  let synth;
 
   let gl, mCanvas, mWidth, mHeight;
 
@@ -51,9 +290,9 @@ async function run() {
   let lastRenderTime = performance.now();
 
   let pendulum = {
-    angle1: Math.PI * 2.0,
-    angle2: Math.PI * 1.5,
-    angularVelocity1: 0.0,
+    angle1: Math.PI * 1.0,
+    angle2: Math.PI * 0.5,
+    angularVelocity1: 1.0,
     angularVelocity2: 0.0,
     length1: 5.0,
     length2: 2.0,
@@ -156,6 +395,7 @@ async function run() {
 
     update(pendulum, dt);
     const { pos1, pos2 } = position(pendulum);
+    updateNote(synth, pendulum.angularVelocity1, pendulum.angularVelocity2);
 
     try {
       const width = window.innerWidth,
@@ -194,7 +434,7 @@ async function run() {
       );
 
       // FFT
-      analyser.getByteFrequencyData(fft);
+      synth.analyser.getByteFrequencyData(fft);
 
       // upload the audio data to the texture
       gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -202,7 +442,7 @@ async function run() {
         gl.TEXTURE_2D,
         0, // level
         gl.LUMINANCE, // internal format
-        analyser.frequencyBinCount, // width
+        synth.analyser.frequencyBinCount, // width
         1, // height
         0, // border
         gl.LUMINANCE, // format
@@ -270,8 +510,8 @@ async function run() {
       gl.enableVertexAttribArray(0);
       gl.vertexAttribPointer(0, 2, FLOAT, false, 0, 0);
 
-      analyser = play();
-      fft = new Uint8Array(analyser.frequencyBinCount);
+      synth = initializeSynth();
+      fft = new Uint8Array(synth.analyser.frequencyBinCount);
 
       texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, texture);

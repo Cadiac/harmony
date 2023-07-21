@@ -101,30 +101,29 @@ float sdPendulum(in vec3 p) {
 float sdCylinder(vec3 p, vec3 c) { return length(p.xz - c.xy) - c.z; }
 
 float map(in vec3 p) {
-  vec3 c = vec3(30.0, 50.0, 2.1);
-  vec3 q = p - c * clamp(floor((p / c) + 0.5), -20.0, 20.0);
-  vec3 q2 = q - vec3(0.0, 2.5, 0.0);
-  vec3 q3 = q - vec3(0.0, 5.0, 0.0);
-  vec3 q4 = q - vec3(0.0, 7.5, 0.0);
+  vec3 c = vec3(25.0, 50.0, 2.1);
+  vec3 q = p - c * clamp(floor((p / c) + 0.5), -10.0, 10.0);
+  vec3 q2 = q - vec3(2.5, 0.0, 0.0);
+  vec3 q3 = q - vec3(5.0, 0.0, 0.0);
+  vec3 q4 = q - vec3(7.5, 0.0, 0.0);
 
-  // float pendulum = sdPendulum(p);
+  float pendulum = sdPendulum(p);
 
-  float pendulum1 = sdPendulum(q);
-  float pendulum2 = sdPendulum(q2);
-  float pendulum3 = sdPendulum(q3);
-  float pendulum4 = sdPendulum(q4);
+  // float pendulum1 = sdPendulum(q);
+  // float pendulum2 = sdPendulum(q2);
+  // float pendulum3 = sdPendulum(q3);
+  // float pendulum4 = sdPendulum(q4);
 
-  float pipe1 = sdCylinder(tRotateX(PI * 0.5) * q, vec3(0.0, -9.0, 0.1));
-  float pipe2 = sdCylinder(tRotateX(PI * 0.5) * q2, vec3(0.0, -9.0, 0.1));
-  float pipe3 = sdCylinder(tRotateX(PI * 0.5) * q3, vec3(0.0, -9.0, 0.1));
-  float pipe4 = sdCylinder(tRotateX(PI * 0.5) * q4, vec3(0.0, -9.0, 0.1));
+  vec3 cc = vec3(2.5, 50.0, 2.5);
+  vec3 qq = p - cc * clamp(floor((p / cc) + 0.5), -50.0, 50.0);
 
+  // float pipe1 = sdCylinder(tRotateX(PI * 0.5) * qq, vec3(0.0, -9.0, 0.1));
   float ground = sdPlane(p, vec3(0., 1., 0.), 2.0);
 
-  // return min(ground, pendulum);
+  return min(ground, pendulum);
 
-  return min(min(min(min(pipe1, pipe2), min(pipe3, pipe4)), ground),
-             min(min(pendulum1, pendulum2), min(pendulum3, pendulum4)));
+  // return min(ground, min(min(pendulum1, pendulum2), min(pendulum3,
+  // pendulum4)));
 }
 
 vec3 fog(in vec3 color, float dist) {
