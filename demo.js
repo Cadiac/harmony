@@ -143,127 +143,197 @@ function createPinkNoise(audioContext, destinations) {
 }
 
 function updateNote(synth, angularVelocity1, angularVelocity2) {
-  synth.adsr.gainNode.gain.cancelScheduledValues(
-    synth.audioContext.currentTime
-  );
-  synth.echo.feedbackGainNode.gain.cancelScheduledValues(
-    synth.audioContext.currentTime
-  );
-
-  synth.oscillators[0].osc.frequency.cancelScheduledValues(
+  synth.filter.frequency.setValueAtTime(
+    400 + 400 * Math.sqrt(Math.abs(angularVelocity2)),
     synth.audioContext.currentTime
   );
 
-  synth.oscillators[0].osc.frequency.setValueAtTime(
-    10 * angularVelocity1,
-    synth.audioContext.currentTime
-  );
-
+  // synth.adsr.gainNode.gain.cancelScheduledValues(
+  //   synth.audioContext.currentTime
+  // );
+  // synth.echo.feedbackGainNode.gain.cancelScheduledValues(
+  //   synth.audioContext.currentTime
+  // );
+  // synth.oscillators[0].osc.frequency.cancelScheduledValues(
+  //   synth.audioContext.currentTime
+  // );
+  // synth.oscillators[0].osc.frequency.setValueAtTime(
+  //   10 * angularVelocity1,
+  //   synth.audioContext.currentTime
+  // );
   // synth.oscillators[0].gain.gain.setValueAtTime(
   //   Math.pow(Math.abs(angularVelocity1), 0.1),
   //   synth.audioContext.currentTime
   // );
-
-  synth.oscillators[1].osc.frequency.cancelScheduledValues(
-    synth.audioContext.currentTime
-  );
-
-  synth.oscillators[1].osc.frequency.setValueAtTime(
-    40 * angularVelocity2,
-    synth.audioContext.currentTime
-  );
-
+  // synth.oscillators[1].osc.frequency.cancelScheduledValues(
+  //   synth.audioContext.currentTime
+  // );
+  // synth.oscillators[1].osc.frequency.setValueAtTime(
+  //   40 * angularVelocity2,
+  //   synth.audioContext.currentTime
+  // );
   // synth.oscillators[1].gain.gain.setValueAtTime(
   //   Math.pow(Math.abs(angularVelocity2), 0.1),
   //   synth.audioContext.currentTime
   // );
-
-  synth.adsr.gainNode.gain.setValueAtTime(1, synth.audioContext.currentTime);
+  // synth.adsr.gainNode.gain.setValueAtTime(1, synth.audioContext.currentTime);
 }
 
 function initializeSynth() {
   const audioContext = new AudioContext();
 
   const analyser = audioContext.createAnalyser();
-  analyser.connect(audioContext.destination);
   analyser.smoothingTimeConstant = 0.75;
   // analyser.fftSize = 128;
 
-  const volumeNode = audioContext.createGain();
-  const adsrGainNode = audioContext.createGain();
-  const lowpassFilterNode = audioContext.createBiquadFilter();
-  const delayNode = audioContext.createDelay();
-  const delayFeedbackGainNode = audioContext.createGain();
-
-  // Connections:
-  // OSC - -> ADSR - - - > Lowpass -> Volume -> Destination
-  // Noise -^  v                ^
-  //           Delay <-> Feedback
-  adsrGainNode.connect(lowpassFilterNode);
-  adsrGainNode.connect(delayNode);
-  delayNode.connect(delayFeedbackGainNode);
-  delayFeedbackGainNode.connect(delayNode);
-  delayFeedbackGainNode.connect(lowpassFilterNode);
-  lowpassFilterNode.connect(volumeNode);
-  volumeNode.connect(analyser);
-
-  const oscillators = [
-    createOscillator(audioContext, 4, adsrGainNode, true),
-    createOscillator(audioContext, 4, adsrGainNode, true),
-  ];
-
-  const modulator = createModulator(
-    audioContext,
-    oscillators.map((o) => o.osc.frequency),
-    false,
-    "lfo"
+  const noiseBuffer = audioContext.createBuffer(
+    1,
+    audioContext.sampleRate * 2,
+    audioContext.sampleRate
   );
+  const noiseData = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseData.length; i++) {
+    noiseData[i] = Math.random() * 2 - 1;
+  }
 
-  // Master volume
-  const volume = 0.8;
-  volumeNode.gain.value = volume;
+  const noise = audioContext.createBufferSource();
+  noise.buffer = noiseBuffer;
+  noise.loop = true;
 
-  // Lowpass filter
-  lowpassFilterNode.type = "lowpass";
-  lowpassFilterNode.frequency.value = (0.1 * audioContext.sampleRate) / 2;
-  lowpassFilterNode.Q.value = 10;
+  const filter = audioContext.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 500;
+  filter.frequency.setValueAtTime(100, audioContext.currentTime);
+  // filter.frequency.linearRampToValueAtTime(800, audioContext.currentTime + 5); // increase cutoff over 5 seconds
 
-  // ADSR
-  adsrGainNode.gain.value = 0.0;
+  let gainNode = audioContext.createGain();
+  gainNode.gain.value = 0.5;
 
-  // Delay
-  delayNode.delayTime.value = 0.2;
-  delayFeedbackGainNode.gain.value = 0.3;
+  // create convolver for reverb, to give the wind sound some space
+  const convolver = audioContext.createConvolver();
+  const impulseResponseBuffer = audioContext.createBuffer(
+    2,
+    audioContext.sampleRate * 1,
+    audioContext.sampleRate
+  ); // 1 second IR
+  for (let channel = 0; channel < 2; channel++) {
+    let impulseResponseData = impulseResponseBuffer.getChannelData(channel);
+    for (let i = 0; i < impulseResponseData.length; i++) {
+      // put a spike at the start and another one half way through, to create a "slapback" echo
+      if (i === 0 || i === impulseResponseData.length / 2) {
+        impulseResponseData[i] = 1;
+      } else {
+        impulseResponseData[i] = 0;
+      }
+    }
+  }
+
+  // assign the impulse response to the convolver
+  convolver.buffer = impulseResponseBuffer;
+
+  // connect nodes
+  noise.connect(filter);
+  filter.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  // gainNode.connect(convolver);
+  // convolver.connect(audioContext.destination);
+  // analyser.connect(audioContext.destination);
+
+  // filter.frequency.setValueAtTime(800, audioContext.currentTime + 10); // change to a higher pitch after 10 seconds
+
+  // start playing
+  noise.start();
 
   return {
-    analyser,
-    playingNotes: new Set(),
     audioContext,
-    volume: {
-      gainNode: volumeNode,
-    },
-    oscillators,
-    pitch: 0,
-    glide: 0.5,
-    modulator,
-    noise: createWhiteNoise(audioContext, [adsrGainNode]),
-    lowpass: {
-      filterNode: lowpassFilterNode,
-    },
-    adsr: {
-      gainNode: adsrGainNode,
-      attack: 0.1,
-      decay: 0.2,
-      sustain: 0.3,
-      release: 0.4,
-      maxDuration: 2,
-    },
-    echo: {
-      delayNode,
-      feedbackGainNode: delayFeedbackGainNode,
-    },
+    analyser,
+    filter,
   };
 }
+
+// function initializeSynth() {
+//   const audioContext = new AudioContext();
+
+//   const analyser = audioContext.createAnalyser();
+//   analyser.connect(audioContext.destination);
+//   analyser.smoothingTimeConstant = 0.75;
+//   // analyser.fftSize = 128;
+
+//   const volumeNode = audioContext.createGain();
+//   const adsrGainNode = audioContext.createGain();
+//   const lowpassFilterNode = audioContext.createBiquadFilter();
+//   const delayNode = audioContext.createDelay();
+//   const delayFeedbackGainNode = audioContext.createGain();
+
+//   // Connections:
+//   // OSC - -> ADSR - - - > Lowpass -> Volume -> Destination
+//   // Noise -^  v                ^
+//   //           Delay <-> Feedback
+//   adsrGainNode.connect(lowpassFilterNode);
+//   adsrGainNode.connect(delayNode);
+//   delayNode.connect(delayFeedbackGainNode);
+//   delayFeedbackGainNode.connect(delayNode);
+//   delayFeedbackGainNode.connect(lowpassFilterNode);
+//   lowpassFilterNode.connect(volumeNode);
+//   volumeNode.connect(analyser);
+
+//   const oscillators = [
+//     createOscillator(audioContext, 4, adsrGainNode, true),
+//     createOscillator(audioContext, 4, adsrGainNode, true),
+//   ];
+
+//   const modulator = createModulator(
+//     audioContext,
+//     oscillators.map((o) => o.osc.frequency),
+//     false,
+//     "lfo"
+//   );
+
+//   // Master volume
+//   const volume = 0.8;
+//   volumeNode.gain.value = volume;
+
+//   // Lowpass filter
+//   lowpassFilterNode.type = "lowpass";
+//   lowpassFilterNode.frequency.value = (0.1 * audioContext.sampleRate) / 2;
+//   lowpassFilterNode.Q.value = 10;
+
+//   // ADSR
+//   adsrGainNode.gain.value = 0.0;
+
+//   // Delay
+//   delayNode.delayTime.value = 0.2;
+//   delayFeedbackGainNode.gain.value = 0.3;
+
+//   return {
+//     analyser,
+//     playingNotes: new Set(),
+//     audioContext,
+//     volume: {
+//       gainNode: volumeNode,
+//     },
+//     oscillators,
+//     pitch: 0,
+//     glide: 0.5,
+//     modulator,
+//     noise: createWhiteNoise(audioContext, [adsrGainNode]),
+//     lowpass: {
+//       filterNode: lowpassFilterNode,
+//     },
+//     adsr: {
+//       gainNode: adsrGainNode,
+//       attack: 0.1,
+//       decay: 0.2,
+//       sustain: 0.3,
+//       release: 0.4,
+//       maxDuration: 2,
+//     },
+//     echo: {
+//       delayNode,
+//       feedbackGainNode: delayFeedbackGainNode,
+//     },
+//   };
+// }
 
 running = false;
 

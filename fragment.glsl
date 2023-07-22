@@ -22,6 +22,17 @@ const vec3 SKY_COLOR = vec3(0.9, 0.8, 0.7);
 const vec3 FOG_COLOR = vec3(0.8, 0.7, 0.6);
 const vec3 COLOR_SHIFT = vec3(1.0, 0.92, 1.0);
 
+struct Material {
+  vec3 diffuse;
+  float reflection;
+};
+
+struct Surface {
+  int id;
+  float dist;
+  Material material;
+};
+
 // Translations
 // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
 mat3 tRotateX(float theta) {
@@ -100,30 +111,27 @@ float sdPendulum(in vec3 p) {
 // https://iquilezles.org/articles/distfunctions/, MIT
 float sdCylinder(vec3 p, vec3 c) { return length(p.xz - c.xy) - c.z; }
 
-float map(in vec3 p) {
-  vec3 c = vec3(25.0, 50.0, 2.1);
-  vec3 q = p - c * clamp(floor((p / c) + 0.5), -10.0, 10.0);
-  vec3 q2 = q - vec3(2.5, 0.0, 0.0);
-  vec3 q3 = q - vec3(5.0, 0.0, 0.0);
-  vec3 q4 = q - vec3(7.5, 0.0, 0.0);
+Surface opUnion(Surface a, Surface b) {
+  if (a.dist < b.dist) {
+    return a;
+  }
+  return b;
+}
 
-  float pendulum = sdPendulum(p);
+Surface scene(in vec3 p) {
+  Surface surface;
 
-  // float pendulum1 = sdPendulum(q);
-  // float pendulum2 = sdPendulum(q2);
-  // float pendulum3 = sdPendulum(q3);
-  // float pendulum4 = sdPendulum(q4);
+  Surface pendulum =
+      Surface(0, sdPendulum(p), Material(vec3(1.0, 1.0, 1.0), 0.5));
+  Surface ground = Surface(1, sdPlane(p, vec3(0., 1., 0.), 2.0),
+                           Material(vec3(0.5, 1.0, 1.0), 0.0));
+  Surface sphere = Surface(2, sdSphere(p - vec3(5.0), 5.0),
+                           Material(vec3(1.0, 1.0, 1.0), 1.0));
 
-  vec3 cc = vec3(2.5, 50.0, 2.5);
-  vec3 qq = p - cc * clamp(floor((p / cc) + 0.5), -50.0, 50.0);
+  surface = opUnion(ground, pendulum);
+  surface = opUnion(surface, sphere);
 
-  // float pipe1 = sdCylinder(tRotateX(PI * 0.5) * qq, vec3(0.0, -9.0, 0.1));
-  float ground = sdPlane(p, vec3(0., 1., 0.), 2.0);
-
-  return min(ground, pendulum);
-
-  // return min(ground, min(min(pendulum1, pendulum2), min(pendulum3,
-  // pendulum4)));
+  return surface;
 }
 
 vec3 fog(in vec3 color, float dist) {
@@ -164,24 +172,24 @@ float softShadows(in vec3 sunDir, in vec3 p, float k) {
       return opacity;
     }
 
-    float dist = map(p + depth * sunDir);
-    if (dist < EPSILON) {
+    Surface surface = scene(p + depth * sunDir);
+    if (surface.dist < EPSILON) {
       return 0.0;
     }
-    opacity = min(opacity, k * dist / depth);
-    depth += dist;
+    opacity = min(opacity, k * surface.dist / depth);
+    depth += surface.dist;
   }
 
   return opacity;
 }
 
 vec3 calcNormals(vec3 p) {
-  float dx =
-      map(vec3(p.x + EPSILON, p.y, p.z)) - map(vec3(p.x - EPSILON, p.y, p.z));
-  float dy =
-      map(vec3(p.x, p.y + EPSILON, p.z)) - map(vec3(p.x, p.y - EPSILON, p.z));
-  float dz =
-      map(vec3(p.x, p.y, p.z + EPSILON)) - map(vec3(p.x, p.y, p.z - EPSILON));
+  float dx = scene(vec3(p.x + EPSILON, p.y, p.z)).dist -
+             scene(vec3(p.x - EPSILON, p.y, p.z)).dist;
+  float dy = scene(vec3(p.x, p.y + EPSILON, p.z)).dist -
+             scene(vec3(p.x, p.y - EPSILON, p.z)).dist;
+  float dz = scene(vec3(p.x, p.y, p.z + EPSILON)).dist -
+             scene(vec3(p.x, p.y, p.z - EPSILON)).dist;
   return normalize(vec3(dx, dy, dz));
 }
 
@@ -194,21 +202,20 @@ mat4 lookAt(vec3 camera, vec3 target, vec3 up) {
               vec4(0.0, 0.0, 0.0, 1.0));
 }
 
-vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 material) {
+vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 normal,
+               in vec3 material) {
   float beat = texture2D(u_audio, vec2(0.0, 0.5)).r * 3.;
 
-  vec3 n = calcNormals(p);
-
-  float dotNS = dot(n, sun);
+  float dotNS = dot(normal, sun);
   vec3 sunLight = vec3(0.0);
   if (dotNS > 0.0) {
     sunLight = clamp(SUN_COLOR * dotNS * softShadows(sun, p, 10.0), 0.0, 1.0);
   }
 
   vec3 skyLight =
-      clamp(SUN_COLOR * (0.5 + 0.5 * n.y) * (0.5 * SKY_COLOR), 0.0, 1.0);
+      clamp(SUN_COLOR * (0.5 + 0.5 * normal.y) * (0.5 * SKY_COLOR), 0.0, 1.0);
 
-  float dotNB = dot(n, -sun);
+  float dotNB = dot(normal, -sun);
   vec3 bounceLight = vec3(0.0);
   if (dotNB > 0.0) {
     bounceLight = clamp(SUN_COLOR * dotNB * (0.4 * SUN_COLOR), 0.0, 1.0);
@@ -217,7 +224,14 @@ vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 material) {
   return clamp(material * (skyLight + sunLight + bounceLight), 0.0, 1.0);
 }
 
-float rayMarch(in vec3 camera, in vec3 rayDir, float start, float end) {
+struct RayResult {
+  Surface surface;
+  vec3 normal;
+  vec3 pos;
+  bool hit;
+};
+
+RayResult rayMarch(in vec3 camera, in vec3 rayDir, float start, float end) {
   // Check if we would hit the bounding plane before reaching "end"
   float stepsToBoundingPlane = (100.0 - camera.y) / rayDir.y;
   if (stepsToBoundingPlane > 0.0) {
@@ -228,27 +242,65 @@ float rayMarch(in vec3 camera, in vec3 rayDir, float start, float end) {
   float dist = 0.0;
   float depth = start;
 
+  RayResult result;
+
   for (int i = 0; i < MAX_MARCHING_STEPS; i++) {
     stepDist = 0.001 * depth;
 
-    vec3 pos = camera + depth * rayDir;
-    float dist = map(pos);
+    result.pos = camera + depth * rayDir;
+    result.surface = scene(result.pos);
 
-    if (dist < stepDist) {
+    if (result.surface.dist < stepDist) {
+      result.hit = true;
       break;
     }
 
-    depth += dist * 0.5;
+    depth += result.surface.dist * 0.5;
 
-    if (depth >= end)
+    if (depth >= end) {
       break;
+    }
   }
 
-  if (depth >= end) {
-    return -1.0;
+  result.surface.dist = depth;
+  result.normal = calcNormals(result.pos);
+
+  return result;
+}
+
+vec3 render(in vec3 camera, in vec3 rayDir, float start, float end) {
+  RayResult ray = rayMarch(camera, rayDir, start, end);
+
+  vec3 sun = normalize(vec3(0.0, 10.0, 10.0));
+  vec3 color = vec3(0.0);
+
+  if (!ray.hit) {
+    color = sky(camera, rayDir, sun);
+  } else {
+    color = ray.surface.material.diffuse;
+
+    if (ray.surface.material.reflection > 0.0) {
+      vec3 reflectDir = reflect(rayDir, ray.normal);
+      RayResult reflection = rayMarch(ray.pos, reflectDir, EPSILON, MAX_DIST);
+
+      vec3 reflectionColor;
+      if (!reflection.hit) {
+        reflectionColor = sky(ray.pos, reflectDir, sun);
+      } else {
+        reflectionColor = reflection.surface.material.diffuse;
+        reflectionColor = lightning(sun, reflection.pos, ray.pos,
+                                    reflection.normal, reflectionColor);
+        reflectionColor = fog(reflectionColor, reflection.surface.dist);
+      }
+
+      color = mix(color, reflectionColor, ray.surface.material.reflection);
+    }
+
+    color = lightning(sun, ray.pos, camera, ray.normal, color);
+    color = fog(color, ray.surface.dist);
   }
 
-  return depth;
+  return color;
 }
 
 vec3 rayDirection(float fov, vec2 dimensions, vec2 fragCoord) {
@@ -272,28 +324,13 @@ void main() {
   mat4 viewToWorld = lookAt(camera, target, normalize(vec3(0., 1., 0.)));
   vec3 worldDir = (viewToWorld * vec4(viewDir, 0.0)).xyz;
 
-  float dist = rayMarch(camera, worldDir, MIN_DIST, MAX_DIST);
-
-  vec3 sun = normalize(vec3(0.0, 10.0, 10.0));
-
-  vec3 color = vec3(0.);
-
-  if (dist < 0.0) {
-    color = sky(camera, worldDir, sun);
-  } else {
-    // vec3 material = vec3(1.0, 1.0, 1.0);
-    vec3 material = vec3(0.2, 0.0, 0.0);
-
-    vec3 p = camera + dist * worldDir;
-
-    color = lightning(sun, p, camera, material);
-    color = fog(color, dist);
-  }
+  vec3 color = render(camera, worldDir, MIN_DIST, MAX_DIST);
 
   color = pow(color, vec3(1.0, 0.92, 1.0));
   color *= vec3(1.02, 0.99, 0.9);
   color.z = color.z + 0.1;
 
   color = smoothstep(0.0, 1.0, color);
+
   gl_FragColor = vec4(color, 1.0);
 }
