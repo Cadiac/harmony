@@ -10,6 +10,7 @@ uniform float u_r1;
 uniform float u_r2;
 
 const int MAX_MARCHING_STEPS = 400;
+const int REFLECTIONS = 10;
 const float MIN_DIST = 0.0;
 const float MAX_DIST = 250.0;
 const float FOV = 60.0;
@@ -125,11 +126,14 @@ Surface scene(in vec3 p) {
       Surface(0, sdPendulum(p), Material(vec3(1.0, 1.0, 1.0), 0.5));
   Surface ground = Surface(1, sdPlane(p, vec3(0., 1., 0.), 2.0),
                            Material(vec3(0.5, 1.0, 1.0), 0.0));
-  Surface sphere = Surface(2, sdSphere(p - vec3(5.0), 5.0),
-                           Material(vec3(1.0, 1.0, 1.0), 1.0));
+  Surface sphere1 = Surface(2, sdSphere(p - vec3(5.0), 5.0),
+                            Material(vec3(1.0, 1.0, 1.0), 0.7));
+  Surface sphere2 = Surface(3, sdSphere(p - vec3(-1.0, 2.0, -3.0), 3.0),
+                            Material(vec3(1.0, 0.3, 0.2), 0.1));
 
   surface = opUnion(ground, pendulum);
-  surface = opUnion(surface, sphere);
+  surface = opUnion(surface, sphere1);
+  surface = opUnion(surface, sphere2);
 
   return surface;
 }
@@ -183,14 +187,13 @@ float softShadows(in vec3 sunDir, in vec3 p, float k) {
   return opacity;
 }
 
-vec3 calcNormals(vec3 p) {
-  float dx = scene(vec3(p.x + EPSILON, p.y, p.z)).dist -
-             scene(vec3(p.x - EPSILON, p.y, p.z)).dist;
-  float dy = scene(vec3(p.x, p.y + EPSILON, p.z)).dist -
-             scene(vec3(p.x, p.y - EPSILON, p.z)).dist;
-  float dz = scene(vec3(p.x, p.y, p.z + EPSILON)).dist -
-             scene(vec3(p.x, p.y, p.z - EPSILON)).dist;
-  return normalize(vec3(dx, dy, dz));
+// Tetrahedron technique, https://iquilezles.org/articles/normalsSDF/
+vec3 calcNormal(in vec3 p) {
+  const vec2 k = vec2(1, -1);
+  return normalize(k.xyy * scene(p + k.xyy * EPSILON).dist +
+                   k.yyx * scene(p + k.yyx * EPSILON).dist +
+                   k.yxy * scene(p + k.yxy * EPSILON).dist +
+                   k.xxx * scene(p + k.xxx * EPSILON).dist);
 }
 
 mat4 lookAt(vec3 camera, vec3 target, vec3 up) {
@@ -263,41 +266,50 @@ RayResult rayMarch(in vec3 camera, in vec3 rayDir, float start, float end) {
   }
 
   result.surface.dist = depth;
-  result.normal = calcNormals(result.pos);
+  result.normal = calcNormal(result.pos);
 
   return result;
 }
 
 vec3 render(in vec3 camera, in vec3 rayDir, float start, float end) {
-  RayResult ray = rayMarch(camera, rayDir, start, end);
-
   vec3 sun = normalize(vec3(0.0, 10.0, 10.0));
+
   vec3 color = vec3(0.0);
+  float reflection = 1.0;
+  vec3 dir = rayDir;
 
-  if (!ray.hit) {
-    color = sky(camera, rayDir, sun);
-  } else {
-    color = ray.surface.material.diffuse;
+  RayResult ray = rayMarch(camera, dir, start, end);
 
-    if (ray.surface.material.reflection > 0.0) {
-      vec3 reflectDir = reflect(rayDir, ray.normal);
-      RayResult reflection = rayMarch(ray.pos, reflectDir, EPSILON, MAX_DIST);
-
-      vec3 reflectionColor;
-      if (!reflection.hit) {
-        reflectionColor = sky(ray.pos, reflectDir, sun);
-      } else {
-        reflectionColor = reflection.surface.material.diffuse;
-        reflectionColor = lightning(sun, reflection.pos, ray.pos,
-                                    reflection.normal, reflectionColor);
-        reflectionColor = fog(reflectionColor, reflection.surface.dist);
-      }
-
-      color = mix(color, reflectionColor, ray.surface.material.reflection);
+  for (int i = 0; i < REFLECTIONS; i++) {
+    if (!ray.hit) {
+      color = mix(color, sky(camera, rayDir, sun), reflection);
+      break;
     }
 
-    color = lightning(sun, ray.pos, camera, ray.normal, color);
-    color = fog(color, ray.surface.dist);
+    vec3 normal = ray.normal;
+
+    // More accurate normals
+    if (ray.surface.id == 1) {
+      normal = vec3(0.0, 1.0, 0.0);
+    } else if (ray.surface.id == 2) {
+      normal = normalize(ray.pos - vec3(5.0));
+    } else if (ray.surface.id == 3) {
+      normal = normalize(ray.pos - vec3(-1.0, 2.0, -3.0));
+    }
+
+    vec3 newColor = ray.surface.material.diffuse;
+    newColor = lightning(sun, ray.pos, camera, normal, newColor);
+    newColor = fog(newColor, ray.surface.dist);
+
+    color = mix(color, newColor, reflection);
+
+    reflection *= ray.surface.material.reflection;
+    if (reflection < EPSILON) {
+      break;
+    }
+
+    dir = reflect(dir, normal);
+    ray = rayMarch(ray.pos, dir, EPSILON, MAX_DIST);
   }
 
   return color;
@@ -319,8 +331,8 @@ void main() {
   // vec3 camera = vec3(20, 15, 20);
   vec3 target = vec3(0, 7, 0);
 
-  // mat4 viewToWorld = lookAt(camera, target, normalize(vec3(1. - sin(u_time /
-  // (10. * SPEED)), sin(u_time / (10. * SPEED)), 0.0)));
+  // mat4 viewToWorld = lookAt(camera, target, normalize(vec3(1. - sin(u_time
+  // / (10. * SPEED)), sin(u_time / (10. * SPEED)), 0.0)));
   mat4 viewToWorld = lookAt(camera, target, normalize(vec3(0., 1., 0.)));
   vec3 worldDir = (viewToWorld * vec4(viewDir, 0.0)).xyz;
 
