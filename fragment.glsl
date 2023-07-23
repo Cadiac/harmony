@@ -19,7 +19,7 @@ const float SPEED = 500.0;
 const float PI = 3.14159;
 
 const vec3 SUN_COLOR = vec3(0.9, 0.9, 0.9);
-const vec3 SKY_COLOR = vec3(0.9, 0.8, 0.7);
+const vec3 SKY_COLOR = vec3(0.7, 0.8, 0.9);
 const vec3 FOG_COLOR = vec3(0.8, 0.7, 0.6);
 const vec3 COLOR_SHIFT = vec3(1.0, 0.92, 1.0);
 
@@ -132,10 +132,10 @@ Surface scene(in vec3 p) {
               Material(vec3(0.5, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
   Surface sphere1 =
       Surface(2, sdSphere(p - vec3(5.0), 5.0),
-              Material(vec3(1.0), vec3(1.0), vec3(1.0), 50.0, 0.9));
+              Material(vec3(0.9), vec3(0.5), vec3(0.5), 50.0, 0.5));
   Surface sphere2 = Surface(
-      3, sdSphere(p - vec3(-1.0, 2.0, -3.0), 3.0),
-      Material(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.2));
+      3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 3.0),
+      Material(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.3));
 
   surface = opUnion(ground, pendulum);
   surface = opUnion(surface, sphere1);
@@ -145,7 +145,7 @@ Surface scene(in vec3 p) {
 }
 
 vec3 fog(in vec3 color, float dist) {
-  vec3 e = exp2(-dist * 0.025 * COLOR_SHIFT);
+  vec3 e = exp2(-dist * 0.055 * COLOR_SHIFT);
   return color * e + (1.0 - e) * FOG_COLOR;
 }
 
@@ -239,6 +239,10 @@ vec3 phong(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir,
   float dotLN = clamp(dot(sun, normal) * softShadows(sun, p, 10.0), 0., 1.);
   vec3 diffuse = material.diffuse * dotLN;
 
+  // vec3 h = normalize(sun + rayDir);
+  // float dotNH = clamp(dot(normal, h), 0., 1.);
+  // vec3 specular = material.specular * pow(dotNH, material.shininess);
+
   float dotRV = clamp(dot(reflect(sun, normal), rayDir), 0., 1.);
   vec3 specular = material.specular * pow(dotRV, material.shininess);
 
@@ -301,7 +305,7 @@ vec3 render(in vec3 camera, in vec3 rayDir, float start, float end) {
 
   for (int i = 0; i < REFLECTIONS; i++) {
     if (!ray.hit) {
-      color = mix(color, sky(camera, rayDir, sun), reflection);
+      color = mix(color, sky(camera, dir, sun), reflection);
       break;
     }
 
@@ -347,8 +351,8 @@ void main() {
                      4. + sin(u_time / (10. * SPEED)),
                      -20. + 20. * cos(u_time / (20. * SPEED)));
 
-  // vec3 camera = vec3(20, 15, 20);
-  vec3 target = vec3(0, 7, 0);
+  // vec3 camera = vec3(-20, 2, -20);
+  vec3 target = vec3(0, 5, 0);
 
   // mat4 viewToWorld = lookAt(camera, target, normalize(vec3(1. - sin(u_time
   // / (10. * SPEED)), sin(u_time / (10. * SPEED)), 0.0)));
