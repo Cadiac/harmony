@@ -25,6 +25,9 @@ const vec3 COLOR_SHIFT = vec3(1.0, 0.92, 1.0);
 
 struct Material {
   vec3 diffuse;
+  vec3 ambient;
+  vec3 specular;
+  float shininess;
   float reflection;
 };
 
@@ -122,14 +125,17 @@ Surface opUnion(Surface a, Surface b) {
 Surface scene(in vec3 p) {
   Surface surface;
 
-  Surface pendulum =
-      Surface(0, sdPendulum(p), Material(vec3(0.5, 0.5, 0.5), 0.5));
-  Surface ground = Surface(1, sdPlane(p, vec3(0., 1., 0.), 2.0),
-                           Material(vec3(0.5, 1.0, 1.0), 0.0));
-  Surface sphere1 = Surface(2, sdSphere(p - vec3(5.0), 5.0),
-                            Material(vec3(1.0, 1.0, 1.0), 0.7));
-  Surface sphere2 = Surface(3, sdSphere(p - vec3(-1.0, 2.0, -3.0), 3.0),
-                            Material(vec3(1.0, 0.3, 0.2), 0.3));
+  Surface pendulum = Surface(
+      0, sdPendulum(p), Material(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
+  Surface ground =
+      Surface(1, sdPlane(p, vec3(0., 1., 0.), 2.0),
+              Material(vec3(0.5, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
+  Surface sphere1 =
+      Surface(2, sdSphere(p - vec3(5.0), 5.0),
+              Material(vec3(1.0), vec3(1.0), vec3(1.0), 50.0, 0.9));
+  Surface sphere2 = Surface(
+      3, sdSphere(p - vec3(-1.0, 2.0, -3.0), 3.0),
+      Material(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.2));
 
   surface = opUnion(ground, pendulum);
   surface = opUnion(surface, sphere1);
@@ -205,8 +211,7 @@ mat4 lookAt(vec3 camera, vec3 target, vec3 up) {
               vec4(0.0, 0.0, 0.0, 1.0));
 }
 
-vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 normal,
-               in vec3 material) {
+vec3 lightning(in vec3 sun, in vec3 p, in vec3 normal, in vec3 material) {
   float beat = texture2D(u_audio, vec2(0.0, 0.5)).r * 3.;
 
   float dotNS = dot(normal, sun);
@@ -225,6 +230,19 @@ vec3 lightning(in vec3 sun, in vec3 p, in vec3 camera, in vec3 normal,
   }
 
   return clamp(material * (skyLight + sunLight + bounceLight), 0.0, 1.0);
+}
+
+vec3 phong(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir,
+           Material material) {
+  vec3 ambient = material.ambient;
+
+  float dotLN = clamp(dot(sun, normal) * softShadows(sun, p, 10.0), 0., 1.);
+  vec3 diffuse = material.diffuse * dotLN;
+
+  float dotRV = clamp(dot(reflect(sun, normal), rayDir), 0., 1.);
+  vec3 specular = material.specular * pow(dotRV, material.shininess);
+
+  return ambient + diffuse + specular;
 }
 
 struct RayResult {
@@ -299,8 +317,7 @@ vec3 render(in vec3 camera, in vec3 rayDir, float start, float end) {
     }
 
     rayDist += ray.surface.dist;
-    vec3 newColor = ray.surface.material.diffuse;
-    newColor = lightning(sun, ray.pos, camera, normal, newColor);
+    vec3 newColor = phong(sun, normal, ray.pos, dir, ray.surface.material);
     newColor = fog(newColor, rayDist);
 
     color = mix(color, newColor, reflection);
