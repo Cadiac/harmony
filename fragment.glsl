@@ -123,13 +123,13 @@ Surface scene(in vec3 p) {
   Surface surface;
 
   Surface pendulum =
-      Surface(0, sdPendulum(p), Material(vec3(1.0, 1.0, 1.0), 0.5));
+      Surface(0, sdPendulum(p), Material(vec3(0.5, 0.5, 0.5), 0.5));
   Surface ground = Surface(1, sdPlane(p, vec3(0., 1., 0.), 2.0),
                            Material(vec3(0.5, 1.0, 1.0), 0.0));
   Surface sphere1 = Surface(2, sdSphere(p - vec3(5.0), 5.0),
                             Material(vec3(1.0, 1.0, 1.0), 0.7));
   Surface sphere2 = Surface(3, sdSphere(p - vec3(-1.0, 2.0, -3.0), 3.0),
-                            Material(vec3(1.0, 0.3, 0.2), 0.1));
+                            Material(vec3(1.0, 0.3, 0.2), 0.3));
 
   surface = opUnion(ground, pendulum);
   surface = opUnion(surface, sphere1);
@@ -139,7 +139,7 @@ Surface scene(in vec3 p) {
 }
 
 vec3 fog(in vec3 color, float dist) {
-  vec3 e = exp2(-dist * 0.055 * COLOR_SHIFT);
+  vec3 e = exp2(-dist * 0.025 * COLOR_SHIFT);
   return color * e + (1.0 - e) * FOG_COLOR;
 }
 
@@ -278,6 +278,7 @@ vec3 render(in vec3 camera, in vec3 rayDir, float start, float end) {
   float reflection = 1.0;
   vec3 dir = rayDir;
 
+  float rayDist = 0.0;
   RayResult ray = rayMarch(camera, dir, start, end);
 
   for (int i = 0; i < REFLECTIONS; i++) {
@@ -297,9 +298,10 @@ vec3 render(in vec3 camera, in vec3 rayDir, float start, float end) {
       normal = normalize(ray.pos - vec3(-1.0, 2.0, -3.0));
     }
 
+    rayDist += ray.surface.dist;
     vec3 newColor = ray.surface.material.diffuse;
     newColor = lightning(sun, ray.pos, camera, normal, newColor);
-    newColor = fog(newColor, ray.surface.dist);
+    newColor = fog(newColor, rayDist);
 
     color = mix(color, newColor, reflection);
 
