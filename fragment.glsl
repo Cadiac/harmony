@@ -31,6 +31,29 @@ struct R {
   bool h;
 };
 
+// Translations
+// http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
+mat3 tRotateX(float theta) {
+  float s = sin(theta);
+  float c = cos(theta);
+
+  return mat3(vec3(1, 0, 0), vec3(0, c, -s), vec3(0, s, c));
+}
+
+mat3 tRotateY(float theta) {
+  float s = sin(theta);
+  float c = cos(theta);
+
+  return mat3(vec3(c, 0, s), vec3(0, 1, 0), vec3(-s, 0, c));
+}
+
+mat3 tRotateZ(float theta) {
+  float s = sin(theta);
+  float c = cos(theta);
+
+  return mat3(vec3(c, -s, 0), vec3(s, c, 0), vec3(0, 0, 1));
+}
+
 // https://iquilezles.org/articles/distfunctions/, MIT
 float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
   vec3 pa = p - a, ba = b - a;
@@ -40,6 +63,11 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
 
 // https://iquilezles.org/articles/distfunctions/, MIT
 float sdSphere(vec3 p, float s) { return length(p) - s; }
+
+float sdBox(vec3 p, vec3 b) {
+  vec3 q = abs(p) - b;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
 
 float sdPendulum(in vec3 p) {
   vec3 offset = vec3(0., 9., 0.);
@@ -68,16 +96,23 @@ S scene(in vec3 p) {
   S pendulum =
       S(0, sdPendulum(p), M(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
   S ground = S(1, dot(p, vec3(0., 1., 0.)) + 2.0,
-               M(vec3(0.5, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
+               M(vec3(1.0, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
   S sphere1 = S(2, sdSphere(p - vec3(5.0), 5.0),
                 M(vec3(0.9), vec3(0.5), vec3(0.5), 50.0, 0.5));
   S sphere2 =
       S(3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 3.0),
         M(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.3));
 
+  S box1 = S(4,
+             sdBox(tRotateX(u_time * 0.0001) * tRotateY(u_time * 0.0005) *
+                       (p - vec3(-8, 5, 3)),
+                   vec3(2)),
+             M(vec3(0.5, 0.5, 0.8), vec3(0.1), vec3(0.9), 50.0, 0.5));
+
   surface = opUnion(ground, pendulum);
   surface = opUnion(surface, sphere1);
   surface = opUnion(surface, sphere2);
+  surface = opUnion(surface, box1);
 
   return surface;
 }
@@ -247,10 +282,11 @@ void main() {
 
   vec3 target = vec3(0, 5, 0);
 
-  mat4 viewToWorld = lookAt(camera, target,
-                            normalize(vec3(1. - sin(u_time / (10. * speed)),
-                                           sin(u_time / (10. * speed)), 0.0)));
-  // mat4 viewToWorld = lookAt(camera, target, normalize(vec3(0., 1., 0.)));
+  // mat4 viewToWorld = lookAt(camera, target,
+  //                           normalize(vec3(1. - sin(u_time / (10. * speed)),
+  //                                          sin(u_time / (10. * speed)),
+  //                                          0.0)));
+  mat4 viewToWorld = lookAt(camera, target, normalize(vec3(0., 1., 0.)));
   vec3 worldDir = (viewToWorld * vec4(viewDir, 0.0)).xyz;
 
   vec3 color = render(camera, worldDir);
