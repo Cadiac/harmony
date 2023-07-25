@@ -9,6 +9,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "dat.gui": "^0.7.9"
+    "dat.gui": "^0.7.9",
+    "demolishedcompressor": "^1.2.1",
+    "serve": "^14.2.0",
+    "uglify-js": "^3.17.4"
   }
 }
