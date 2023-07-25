@@ -2,6 +2,7 @@ precision highp float;
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform vec4 u_p;
+uniform vec2 u_r;
 
 const float MAX_DIST = 250.0;
 const float EPSILON = .00001;
@@ -45,8 +46,8 @@ float sdPendulum(in vec3 p) {
   vec3 p1 = vec3(u_p.xy, 0.) + offset;
   vec3 p2 = vec3(u_p.zw, 0.) + offset;
 
-  float ball1 = sdSphere(p - p1, .2);
-  float ball2 = sdSphere(p - p2, .4);
+  float ball1 = sdSphere(p - p1, u_r.x);
+  float ball2 = sdSphere(p - p2, u_r.y);
 
   float line1 = sdCapsule(p, offset, p1, 0.05);
   float line2 = sdCapsule(p, p1, p2, 0.05);
