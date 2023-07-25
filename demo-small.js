@@ -2,7 +2,7 @@ C = Math.cos;
 S = Math.sin;
 P = Math.pow;
 
-run = async () => {
+run = () => {
   vs = `attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}`;
   // const res = await fetch("/fragment.glsl");
   // const fs = await res.text();
