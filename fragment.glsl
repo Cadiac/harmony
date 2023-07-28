@@ -1,4 +1,5 @@
 precision highp float;
+uniform int u_frame;
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform vec4 u_p;
