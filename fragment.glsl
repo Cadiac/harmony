@@ -1,5 +1,5 @@
 precision highp float;
-uniform int u_frame;
+uniform int u_active_fbo;
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform vec4 u_p;
@@ -11,7 +11,7 @@ const float EPSILON = .00001;
 const vec3 FOG_COLOR = vec3(.8, .7, .6);
 const vec3 COLOR_SHIFT = vec3(1., .92, 1.);
 
-struct M {
+struct Material {
   vec3 d;
   vec3 m;
   vec3 e;
@@ -19,18 +19,68 @@ struct M {
   float f;
 };
 
-struct S {
+struct Surface {
   int i;
   float d;
-  M m;
+  Material m;
 };
 
-struct R {
-  S d;
+struct Ray {
+  Surface d;
   vec3 n;
   vec3 o;
   bool h;
 };
+
+const mat3 m3 = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
+const mat3 m3i = mat3(0.00, -0.80, -0.60, 0.80, 0.36, -0.48, 0.60, -0.48, 0.64);
+const mat2 m2 = mat2(0.80, 0.60, -0.60, 0.80);
+const mat2 m2i = mat2(0.80, -0.60, 0.60, 0.80);
+
+float hash1(float n) { return fract(n * 17.0 * fract(n * 0.3183099)); }
+
+float noise(in vec3 x) {
+  vec3 p = floor(x);
+  vec3 w = fract(x);
+
+  vec3 u = w * w * (3.0 - 2.0 * w);
+  float n = p.x + 317.0 * p.y + 157.0 * p.z;
+
+  float a = hash1(n + 0.0);
+  float b = hash1(n + 1.0);
+  float c = hash1(n + 317.0);
+  float d = hash1(n + 318.0);
+  float e = hash1(n + 157.0);
+  float f = hash1(n + 158.0);
+  float g = hash1(n + 474.0);
+  float h = hash1(n + 475.0);
+
+  float k0 = a;
+  float k1 = b - a;
+  float k2 = c - a;
+  float k3 = e - a;
+  float k4 = a - b - c + d;
+  float k5 = a - c - e + g;
+  float k6 = a - b - e + f;
+  float k7 = -a + b + c - d + e - f - g + h;
+
+  return -1.0 + 2.0 * (k0 + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y +
+                       k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z);
+}
+
+float fbm(in vec3 x) {
+  float f = 2.0;
+  float s = 0.5;
+  float a = 0.0;
+  float b = 0.5;
+  for (int i = 0; i < 7; i++) {
+    float n = noise(x);
+    a += b * n;
+    b *= s;
+    x = f * m3 * x;
+  }
+  return a;
+}
 
 // Translations
 // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
@@ -84,31 +134,34 @@ float sdPendulum(in vec3 p) {
   return min(min(ball1, ball2), min(line1, line2));
 }
 
-S opUnion(S a, S b) {
+Surface opUnion(Surface a, Surface b) {
   if (a.d < b.d) {
     return a;
   }
   return b;
 }
 
-S scene(in vec3 p) {
-  S surface;
+Surface scene(in vec3 p) {
+  Surface surface;
 
-  S pendulum =
-      S(0, sdPendulum(p), M(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
-  S ground = S(1, dot(p, vec3(0., 1., 0.)) + 2.0,
-               M(vec3(1.0, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
-  S sphere1 = S(2, sdSphere(p - vec3(5.0), 5.0),
-                M(vec3(0.9), vec3(0.5), vec3(0.5), 50.0, 0.5));
-  S sphere2 =
-      S(3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 3.0),
-        M(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.3));
+  Surface pendulum = Surface(
+      0, sdPendulum(p), Material(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
+  Surface ground =
+      Surface(1, dot(p, vec3(0., 1., 0.)) + 2.0,
+              Material(vec3(1.0, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
+  Surface sphere1 =
+      Surface(2, sdSphere(p - vec3(5.0), 5.0),
+              Material(vec3(0.9), vec3(0.5), vec3(0.5), 50.0, 0.5));
+  Surface sphere2 = Surface(
+      3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 3.0),
+      Material(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.3));
 
-  S box1 = S(4,
-             sdBox(tRotateX(u_time * 0.0001) * tRotateY(u_time * 0.0005) *
-                       (p - vec3(-8, 5, 3)),
-                   vec3(2)),
-             M(vec3(0.5, 0.5, 0.8), vec3(0.1), vec3(0.9), 50.0, 0.5));
+  Surface box1 =
+      Surface(4,
+              sdBox(tRotateX(u_time * 0.0001) * tRotateY(u_time * 0.0005) *
+                        (p - vec3(-8, 5, 3)),
+                    vec3(2)),
+              Material(vec3(0.5, 0.5, 0.8), vec3(0.1), vec3(0.9), 50.0, 0.5));
 
   surface = opUnion(ground, pendulum);
   surface = opUnion(surface, sphere1);
@@ -156,7 +209,7 @@ float softShadows(in vec3 sunDir, in vec3 p, float k) {
       return opacity;
     }
 
-    S surface = scene(p + depth * sunDir);
+    Surface surface = scene(p + depth * sunDir);
     if (surface.d < EPSILON) {
       return 0.;
     }
@@ -175,7 +228,8 @@ mat4 lookAt(vec3 camera, vec3 target, vec3 up) {
   return mat4(vec4(s, .0), vec4(u, .0), vec4(-f, .0), vec4(.0, .0, .0, 1.));
 }
 
-vec3 phong(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir, M material) {
+vec3 phong(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir,
+           Material material) {
   vec3 ambient = material.m;
 
   float dotLN = clamp(dot(sun, normal) * softShadows(sun, p, 10.0), 0., 1.);
@@ -187,12 +241,12 @@ vec3 phong(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir, M material) {
   return ambient + diffuse + specular;
 }
 
-R rayMarch(in vec3 camera, in vec3 rayDir) {
+Ray rayMarch(in vec3 camera, in vec3 rayDir) {
   float stepDist = EPSILON;
   float dist = EPSILON;
   float depth = EPSILON;
 
-  R result;
+  Ray result;
 
   for (int i = 0; i < 400; i++) {
     stepDist = 0.001 * depth;
@@ -233,9 +287,9 @@ vec3 render(in vec3 camera, in vec3 rayDir) {
   vec3 dir = rayDir;
 
   float rayDist = 0.0;
-  R ray = rayMarch(camera, dir);
+  Ray ray = rayMarch(camera, dir);
 
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 4; i++) {
     if (!ray.h) {
       color = mix(color, sky(camera, dir, sun), reflection);
       break;
@@ -247,7 +301,9 @@ vec3 render(in vec3 camera, in vec3 rayDir) {
     if (ray.d.i == 1) {
       normal = vec3(0.0, 1.0, 0.0);
     } else if (ray.d.i == 2) {
-      normal = normalize(ray.o - vec3(5.0));
+      float n = fbm(tRotateZ(u_time * 0.0001) * ray.o * 5.);
+      vec3 noised = ray.o - 0.5 * n;
+      normal = normalize(noised - vec3(5.0));
     } else if (ray.d.i == 3) {
       normal = normalize(ray.o - vec3(-1.0, 2.0, -3.0));
     }

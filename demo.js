@@ -509,10 +509,9 @@ async function run() {
         mHeight = height;
       }
 
-      // Bind to current fbo, using the texture from last
-      gl.bindTexture(gl.TEXTURE_2D, textures[frame % 2]);
+      // Bind each frame to its fbo, storing the current frame in one
+      // texture and keeping the previous frame in the other texture.
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[frame % 2]);
-      // gl.bindTexture(gl.TEXTURE_2D, textures[1]);
       gl.viewport(0, 0, width, height);
 
       gl.clearColor(0, 0, 0, 1);
@@ -521,7 +520,7 @@ async function run() {
       const program = programs[0];
       gl.useProgram(program);
 
-      gl.uniform1i(gl.getUniformLocation(program, "u_frame"), frame % 2);
+      gl.uniform1i(gl.getUniformLocation(program, "u_active_fbo"), frame % 2);
       gl.uniform1f(gl.getUniformLocation(program, "u_time"), now);
       gl.uniform2f(
         gl.getUniformLocation(program, "u_resolution"),
@@ -556,11 +555,10 @@ async function run() {
         0.2 * Math.pow(pendulum.mass2, 0.333)
       );
 
-      // Draw
+      // Draw to frame buffer texture
       gl.drawArrays(TRIANGLE_STRIP, 0, 4);
 
-      // Effects shader, drawing the scene from texture
-
+      // Effects shader, draw the scene from texture applying effects
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, width, height);
       gl.clearColor(0, 0, 0, 1);
@@ -569,6 +567,10 @@ async function run() {
       const effectsProgram = programs[1];
       gl.useProgram(effectsProgram);
 
+      gl.uniform1i(
+        gl.getUniformLocation(effectsProgram, "u_active_fbo"),
+        frame % 2
+      );
       gl.uniform2f(
         gl.getUniformLocation(effectsProgram, "u_resolution"),
         width,
