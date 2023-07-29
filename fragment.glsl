@@ -1,9 +1,8 @@
 precision highp float;
-uniform int u_active_fbo;
+
 uniform float u_time;
 uniform vec2 u_resolution;
 uniform vec4 u_p;
-uniform vec2 u_r;
 
 const float MAX_DIST = 250.0;
 const float EPSILON = .00001;
@@ -33,13 +32,11 @@ struct Ray {
   bool h;
 };
 
-const mat3 m3 = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
-const mat3 m3i = mat3(0.00, -0.80, -0.60, 0.80, 0.36, -0.48, 0.60, -0.48, 0.64);
-const mat2 m2 = mat2(0.80, 0.60, -0.60, 0.80);
-const mat2 m2i = mat2(0.80, -0.60, 0.60, 0.80);
-
+// Noise functions
+// Taken from IQ, https://iquilezles.org/, MIT
 float hash1(float n) { return fract(n * 17.0 * fract(n * 0.3183099)); }
 
+// Taken from IQ, https://iquilezles.org/, MIT
 float noise(in vec3 x) {
   vec3 p = floor(x);
   vec3 w = fract(x);
@@ -69,6 +66,7 @@ float noise(in vec3 x) {
                        k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z);
 }
 
+// Taken from IQ, https://iquilezles.org/, MIT
 float fbm(in vec3 x) {
   float f = 2.0;
   float s = 0.5;
@@ -78,7 +76,7 @@ float fbm(in vec3 x) {
     float n = noise(x);
     a += b * n;
     b *= s;
-    x = f * m3 * x;
+    x = f * mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64) * x;
   }
   return a;
 }
@@ -116,6 +114,7 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
 // https://iquilezles.org/articles/distfunctions/, MIT
 float sdSphere(vec3 p, float s) { return length(p) - s; }
 
+// https://iquilezles.org/articles/distfunctions/, MIT
 float sdBox(vec3 p, vec3 b) {
   vec3 q = abs(p) - b;
   return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
@@ -126,8 +125,8 @@ float sdPendulum(in vec3 p) {
   vec3 p2 = vec3(u_p.zw, 0.);
 
   float ball0 = sdSphere(p, .3);
-  float ball1 = sdSphere(p - p1, u_r.x);
-  float ball2 = sdSphere(p - p2, u_r.y);
+  float ball1 = sdSphere(p - p1, 0.8);
+  float ball2 = sdSphere(p - p2, 0.5);
 
   float line1 = sdCapsule(p, vec3(0), p1, 0.05);
   float line2 = sdCapsule(p, p1, p2, 0.05);

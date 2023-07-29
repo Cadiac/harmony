@@ -567,10 +567,6 @@ async function run() {
       const effectsProgram = programs[1];
       gl.useProgram(effectsProgram);
 
-      gl.uniform1i(
-        gl.getUniformLocation(effectsProgram, "u_active_fbo"),
-        frame % 2
-      );
       gl.uniform2f(
         gl.getUniformLocation(effectsProgram, "u_resolution"),
         width,
@@ -580,9 +576,10 @@ async function run() {
       gl.uniform1i(gl.getUniformLocation(effectsProgram, "u_texture1"), 1);
 
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+      gl.bindTexture(gl.TEXTURE_2D, textures[frame % 2]);
+      frame += 1;
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, textures[1]);
+      gl.bindTexture(gl.TEXTURE_2D, textures[frame % 2]);
 
       // Draw
       gl.drawArrays(TRIANGLE_STRIP, 0, 4);
@@ -592,8 +589,6 @@ async function run() {
       console.log(err);
       alert("Error: " + err.message);
     }
-
-    frame += 1;
   }
 
   function createAndSetupTexture(gl) {
