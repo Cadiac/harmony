@@ -394,11 +394,11 @@ async function run() {
     angle1: Math.PI * 1.0,
     angle2: Math.PI * 0.5,
     angularVelocity1: 1.0,
-    angularVelocity2: 0.0,
-    length1: 5.0,
-    length2: 2.0,
-    mass1: 1.0,
-    mass2: 5.0,
+    angularVelocity2: -2.0,
+    length1: 3.0,
+    length2: 4.0,
+    mass1: 8.0,
+    mass2: 2,
     g: 9.81,
     damping: 0.0,
   };
@@ -536,8 +536,8 @@ async function run() {
       );
       gl.uniform2f(
         gl.getUniformLocation(program, "u_r"),
-        0.2 * Math.pow(pendulum.mass1, 0.333),
-        0.2 * Math.pow(pendulum.mass2, 0.333)
+        0.4 * Math.pow(pendulum.mass1, 0.333),
+        0.4 * Math.pow(pendulum.mass2, 0.333)
       );
 
       gl.uniform1f(gl.getUniformLocation(program, "v"), now);
@@ -551,8 +551,8 @@ async function run() {
       );
       gl.uniform2f(
         gl.getUniformLocation(program, "f"),
-        0.2 * Math.pow(pendulum.mass1, 0.333),
-        0.2 * Math.pow(pendulum.mass2, 0.333)
+        0.4 * Math.pow(pendulum.mass1, 0.333),
+        0.4 * Math.pow(pendulum.mass2, 0.333)
       );
 
       // Draw to frame buffer texture

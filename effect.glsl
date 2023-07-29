@@ -11,7 +11,7 @@ void main() {
   vec3 texel_1 = texture2D(u_texture1, p).xyz;
 
   vec3 color = vec3(0);
-  float average = 0.5; // 0 to 0.5
+  float average = 0.25; // 0 to 0.5
 
   if (u_active_fbo == 0) {
     color = mix(texel_0, texel_1, average);

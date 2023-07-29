@@ -10,6 +10,7 @@ const float EPSILON = .00001;
 
 const vec3 FOG_COLOR = vec3(.8, .7, .6);
 const vec3 COLOR_SHIFT = vec3(1., .92, 1.);
+const vec3 SKY_COLOR = vec3(.7, .8, .9);
 
 struct Material {
   vec3 d;
@@ -121,17 +122,17 @@ float sdBox(vec3 p, vec3 b) {
 }
 
 float sdPendulum(in vec3 p) {
-  vec3 offset = vec3(0., 9., 0.);
-  vec3 p1 = vec3(u_p.xy, 0.) + offset;
-  vec3 p2 = vec3(u_p.zw, 0.) + offset;
+  vec3 p1 = vec3(u_p.xy, 0.);
+  vec3 p2 = vec3(u_p.zw, 0.);
 
+  float ball0 = sdSphere(p, .3);
   float ball1 = sdSphere(p - p1, u_r.x);
   float ball2 = sdSphere(p - p2, u_r.y);
 
-  float line1 = sdCapsule(p, offset, p1, 0.05);
+  float line1 = sdCapsule(p, vec3(0), p1, 0.05);
   float line2 = sdCapsule(p, p1, p2, 0.05);
 
-  return min(min(ball1, ball2), min(line1, line2));
+  return min(min(ball0, min(ball1, ball2)), min(line1, line2));
 }
 
 Surface opUnion(Surface a, Surface b) {
@@ -144,14 +145,14 @@ Surface opUnion(Surface a, Surface b) {
 Surface scene(in vec3 p) {
   Surface surface;
 
-  Surface pendulum = Surface(
-      0, sdPendulum(p), Material(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
-  Surface ground =
-      Surface(1, dot(p, vec3(0., 1., 0.)) + 2.0,
-              Material(vec3(1.0, 1.0, 1.0), vec3(0.5), vec3(0.5), 2.0, 0.0));
+  Surface pendulum =
+      Surface(0, sdPendulum(p - vec3(0., 9., 0.)),
+              Material(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
+  Surface ground = Surface(1, dot(p, vec3(0., 1.5, 0.)) + 2.0,
+                           Material(vec3(1.), vec3(.5), vec3(.5), 2.0, 0.0));
   Surface sphere1 =
       Surface(2, sdSphere(p - vec3(5.0), 5.0),
-              Material(vec3(0.9), vec3(0.5), vec3(0.5), 50.0, 0.5));
+              Material(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
   Surface sphere2 = Surface(
       3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 3.0),
       Material(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.3));
@@ -171,14 +172,9 @@ Surface scene(in vec3 p) {
   return surface;
 }
 
-vec3 fog(in vec3 color, float dist) {
-  vec3 e = exp2(-dist * .05 * COLOR_SHIFT);
-  return color * e + (1. - e) * FOG_COLOR;
-}
-
 vec3 sky(in vec3 camera, in vec3 dir, in vec3 sun) {
   // Deeper blue when looking up
-  vec3 color = vec3(.7, .8, .9) - .5 * dir.y;
+  vec3 color = SKY_COLOR - .5 * dir.y;
 
   // Fade to fog further away
   float dist = (25000. - camera.y) / dir.y;
@@ -190,11 +186,6 @@ vec3 sky(in vec3 camera, in vec3 dir, in vec3 sun) {
   if (dotSun > .9999) {
     float h = dir.y - sun.y;
     color = vec3(.9);
-  }
-
-  // Sun glare
-  if (dotSun > .9998) {
-    color = mix(color, vec3(.9), (dotSun - .9998) / (1. - .9998));
   }
 
   return color;
@@ -228,17 +219,22 @@ mat4 lookAt(vec3 camera, vec3 target, vec3 up) {
   return mat4(vec4(s, .0), vec4(u, .0), vec4(-f, .0), vec4(.0, .0, .0, 1.));
 }
 
-vec3 phong(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir,
-           Material material) {
+vec3 lightning(in vec3 sun, in vec3 normal, in vec3 p, in vec3 rayDir,
+               in float rayDist, Material material) {
   vec3 ambient = material.m;
 
-  float dotLN = clamp(dot(sun, normal) * softShadows(sun, p, 10.0), 0., 1.);
+  float shadow = softShadows(sun, p, 10.0);
+  float dotLN = clamp(dot(sun, normal) * shadow, 0., 1.);
   vec3 diffuse = material.d * dotLN;
 
   float dotRV = clamp(dot(reflect(sun, normal), rayDir), 0., 1.);
   vec3 specular = material.e * pow(dotRV, material.h);
 
-  return ambient + diffuse + specular;
+  vec3 color = ambient + diffuse + specular;
+
+  // Fog
+  vec3 e = exp2(-rayDist * .05 * COLOR_SHIFT);
+  return color * e + (1. - e) * FOG_COLOR;
 }
 
 Ray rayMarch(in vec3 camera, in vec3 rayDir) {
@@ -268,19 +264,11 @@ Ray rayMarch(in vec3 camera, in vec3 rayDir) {
 
   result.d.d = depth;
 
-  // Tetrahedron technique, https://iquilezles.org/articles/normalsSDF/
-  const vec2 k = vec2(1, -1);
-  vec3 p = result.o;
-  result.n = normalize(k.xyy * scene(p + k.xyy * EPSILON).d +
-                       k.yyx * scene(p + k.yyx * EPSILON).d +
-                       k.yxy * scene(p + k.yxy * EPSILON).d +
-                       k.xxx * scene(p + k.xxx * EPSILON).d);
-
   return result;
 }
 
 vec3 render(in vec3 camera, in vec3 rayDir) {
-  vec3 sun = normalize(vec3(0.0, 10.0, 10.0));
+  vec3 sun = normalize(vec3(0.0, 10.0, u_time / 500.));
 
   vec3 color = vec3(0.0);
   float reflection = 1.0;
@@ -295,22 +283,28 @@ vec3 render(in vec3 camera, in vec3 rayDir) {
       break;
     }
 
-    vec3 normal = ray.n;
+    vec3 normal = vec3(0.);
 
-    // More accurate normals
+    // More accurate normals for spheres and ground
     if (ray.d.i == 1) {
-      normal = vec3(0.0, 1.0, 0.0);
+      normal = vec3(.0, 1., 0.);
     } else if (ray.d.i == 2) {
-      float n = fbm(tRotateZ(u_time * 0.0001) * ray.o * 5.);
-      vec3 noised = ray.o - 0.5 * n;
-      normal = normalize(noised - vec3(5.0));
+      normal =
+          normalize(ray.o - 0.5 * fbm(tRotateZ(u_time * 0.0001) * ray.o * 5.) -
+                    vec3(5.0));
     } else if (ray.d.i == 3) {
       normal = normalize(ray.o - vec3(-1.0, 2.0, -3.0));
+    } else {
+      // Tetrahedron technique, https://iquilezles.org/articles/normalsSDF/
+      const vec2 k = vec2(1, -1);
+      normal = normalize(k.xyy * scene(ray.o + k.xyy * EPSILON).d +
+                         k.yyx * scene(ray.o + k.yyx * EPSILON).d +
+                         k.yxy * scene(ray.o + k.yxy * EPSILON).d +
+                         k.xxx * scene(ray.o + k.xxx * EPSILON).d);
     }
 
     rayDist += ray.d.d;
-    vec3 newColor = phong(sun, normal, ray.o, dir, ray.d.m);
-    newColor = fog(newColor, rayDist);
+    vec3 newColor = lightning(sun, normal, ray.o, dir, rayDist, ray.d.m);
 
     color = mix(color, newColor, reflection);
 
@@ -323,6 +317,11 @@ vec3 render(in vec3 camera, in vec3 rayDir) {
     ray = rayMarch(ray.o, dir);
   }
 
+  // Add sun glare to sky and the ground plane
+  if (!ray.h || ray.d.i == 1) {
+    float glare = clamp(dot(sun, dir), 0.0, 1.0);
+    color += 0.5 * vec3(1., .5, .2) * pow(glare, 32.0);
+  }
   return color;
 }
 
