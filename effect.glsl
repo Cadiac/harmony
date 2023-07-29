@@ -20,7 +20,9 @@ void main() {
   }
 
   // Burn effect
-  color *= 0.5 + 0.5 * pow(16.0 * p.x * p.y * (1.0 - p.x) * (1.0 - p.y), 0.05);
+  // color *= 0.5 + 0.5 * pow(16.0 * p.x * p.y * (1.0 - p.x) * (1.0 - p.y),
+  // 0.05);
+  color *= 0.5 + 0.5 * pow(32.0 * p.x * p.y * (1.0 - p.x) * (1.0 - p.y), 0.5);
 
   gl_FragColor = vec4(color, 1.0);
 }
