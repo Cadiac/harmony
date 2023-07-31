@@ -386,9 +386,10 @@ async function run() {
   let gui;
   let synth;
   let frame = 0;
+  let lastRenderTime = 0;
+  const epoch = performance.now();
 
   let gl, mCanvas, mWidth, mHeight;
-  let lastRenderTime = performance.now();
 
   let pendulum = {
     angle1: Math.PI * 1.0,
@@ -490,9 +491,13 @@ async function run() {
   }
 
   function render() {
-    const now = performance.now();
+    const now = performance.now() - epoch;
     const dt = (now - lastRenderTime) / 1000;
     lastRenderTime = now;
+
+    if (now > 20000) {
+      pendulum.damping = 0.25;
+    }
 
     update(pendulum, dt);
     const { pos1, pos2 } = position(pendulum);
@@ -520,7 +525,6 @@ async function run() {
       const program = programs[0];
       gl.useProgram(program);
 
-      gl.uniform1i(gl.getUniformLocation(program, "u_active_fbo"), frame % 2);
       gl.uniform1f(gl.getUniformLocation(program, "u_time"), now);
       gl.uniform2f(
         gl.getUniformLocation(program, "u_resolution"),
@@ -567,6 +571,7 @@ async function run() {
       const effectsProgram = programs[1];
       gl.useProgram(effectsProgram);
 
+      gl.uniform1f(gl.getUniformLocation(effectsProgram, "u_time"), now);
       gl.uniform2f(
         gl.getUniformLocation(effectsProgram, "u_resolution"),
         width,

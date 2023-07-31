@@ -329,9 +329,9 @@ void main() {
   float z = u_resolution.y / tan(radians(60.0) / 2.0);
   vec3 viewDir = normalize(vec3(xy, -z));
 
-  float speed = 500.;
+  float speed = 250.;
 
-  vec3 camera = vec3(-10. + 20. * sin(u_time / (20. * speed)),
+  vec3 camera = vec3(-20. + 20. * sin(u_time / (20. * speed)),
                      4. + sin(u_time / (10. * speed)),
                      -20. + 20. * cos(u_time / (20. * speed)));
 
