@@ -2,61 +2,138 @@ C = Math.cos;
 S = Math.sin;
 P = Math.pow;
 
-run = () =>
-  document.documentElement.requestFullscreen().then(() => {
+run = () => {
+  // Initialize synth, needs to be done here with the click event
+  // Synth
+  a = new AudioContext();
+
+  // FFT
+  const analyser = a.createAnalyser();
+  analyser.connect(a.destination);
+  analyser.smoothingTimeConstant = 0.75;
+  // analyser.fftSize = 128;
+
+  // ADSR
+  adsrGainNode = a.createGain();
+  adsrGainNode.gain.value = 0.0;
+
+  // Delay
+  delayNode = a.createDelay();
+  delayNode.delayTime.value = 0.4;
+  delayFeedbackGainNode = a.createGain();
+  delayFeedbackGainNode.gain.value = 0.0;
+
+  // Master volume
+  volumeNode = a.createGain();
+  volumeNode.gain.value = 0.8;
+
+  // Lowpass filter
+  lowpassFilterNode = a.createBiquadFilter();
+  lowpassFilterNode.type = "lowpass";
+  lowpassFilterNode.frequency.value = (0.1 * a.sampleRate) / 2;
+  lowpassFilterNode.Q.value = 10;
+
+  // LFO
+  lfo = a.createOscillator();
+  lfo.frequency.value = 5;
+  lfo.start();
+  lfoGainNode = a.createGain();
+  lfoGainNode.gain.value = 5;
+  lfo.connect(lfoGainNode);
+
+  // Oscilators: [octave, detune]
+  oscillators = [
+    [3, 0],
+    [2, 10],
+    [2, -10],
+  ].map(([octave, detune]) => {
+    o = new OscillatorNode(a);
+    o.type = "sawtooth";
+    o.frequency.value = 440 * P(2, octave - 4); // A
+    o.detune.value = detune;
+
+    // oscGainNode = a.createGain();
+    // o.connect(oscGainNode);
+    // oscGainNode.connect(adsrGainNode);
+    o.connect(adsrGainNode);
+    lfoGainNode.connect(o.frequency);
+
+    // A C F G
+    // notes = [440, 523.25, 349.23, 392.0];
+    // for (let i = 0; i < 100; i++) {
+    //   o.frequency.setValueAtTime(
+    //     440 * P(2, octave - 4),
+    //     a.currentTime
+    //   );
+    // }
+
+    o.start();
+
+    return o;
+  });
+
+  // Connections:
+  // OSC - -> LFO - - > ADSR - - - > Lowpass -> Volume -> Destination
+  //                     v                ^
+  //                     Delay <-> Feedback
+  adsrGainNode.connect(lowpassFilterNode);
+  adsrGainNode.connect(delayNode);
+  delayNode.connect(delayFeedbackGainNode);
+  delayFeedbackGainNode.connect(delayNode);
+  delayFeedbackGainNode.connect(lowpassFilterNode);
+  lowpassFilterNode.connect(volumeNode);
+  volumeNode.connect(analyser);
+
+  pitch = 0;
+
+  getFrequency = (note, baseOctave) => {
+    const baseFrequency = 440; // A4
+    const pitchMultiplier = Math.pow(2, pitch / 12);
+    const n = note + (baseOctave - 4) * 12;
+    return baseFrequency * Math.pow(2, n / 12) * pitchMultiplier;
+  };
+
+  playNote = (note, octave, duration) => {
+    adsrGainNode.gain.cancelScheduledValues(a.currentTime);
+    delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime);
+    adsr = {
+      a: 0.1,
+      d: 0.2,
+      s: 0.3,
+      r: 0.4,
+    };
+
+    oscillators.forEach((oscillator) => {
+      const nextFrequency = getFrequency(note, octave);
+      oscillator.frequency.cancelScheduledValues(a.currentTime);
+      oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
+    });
+
+    adsrGainNode.gain.setValueAtTime(0, a.currentTime);
+    adsrGainNode.gain.linearRampToValueAtTime(1, a.currentTime + adsr.a);
+    adsrGainNode.gain.setTargetAtTime(adsr.s, a.currentTime + adsr.a, adsr.d);
+
+    // adsrGainNode.gain.cancelScheduledValues(a.currentTime + duration);
+    // delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime + duration);
+    adsrGainNode.gain.setValueAtTime(
+      adsrGainNode.gain.value,
+      a.currentTime + duration
+    );
+    adsrGainNode.gain.linearRampToValueAtTime(
+      0,
+      a.currentTime + duration + adsr.r
+    );
+  };
+
+  // setInterval(() => {
+  //   playNote(Math.floor(y), 2, 0.1);
+  //   ++note;
+  // }, 100);
+
+  return document.documentElement.requestFullscreen().then(() => {
     e = performance.now();
     t = 0;
     frame = 0;
-
-    // Synth
-    a = new AudioContext();
-
-    // Lowpass filter
-    f = a.createBiquadFilter();
-    f.type = "lowpass";
-    f.frequency.value = (0.1 * a.sampleRate) / 2;
-    f.Q.value = 10;
-
-    // Connections:
-    // OSC -> Lowpass -> Destination
-    f.connect(a.destination);
-
-    m = a.createOscillator();
-    m.frequency.value = 5;
-    m.start();
-
-    g = a.createGain();
-    g.gain.value = 5;
-
-    m.connect(g);
-
-    // Oscilators: [octave, detune]
-    [
-      [3, 0],
-      [2, 20],
-      [2, -20],
-    ].map(([octave, detune]) => {
-      o = new OscillatorNode(a);
-      o.type = "sawtooth";
-      o.frequency.value = 440 * P(2, octave - 4); // A
-      o.detune.value = detune;
-
-      o.connect(f);
-      g.connect(o.frequency);
-
-      // A C F G
-      n = [440, 523.25, 349.23, 392.0];
-      for (let i = 0; i < 100; i++) {
-        o.frequency.setValueAtTime(
-          n[i % 4] * P(2, octave - 4),
-          a.currentTime + i * 2
-        );
-      }
-
-      o.start();
-
-      return o;
-    });
 
     w = window.innerWidth;
     h = window.innerHeight;
@@ -181,14 +258,24 @@ run = () =>
         p[i] += (dt * (X[i] + 2 * Y[i] + 2 * Z[i] + W[i])) / 6;
       });
 
+      x = S(p[0]) * 3;
+      xx = x + S(p[1]) * 4;
+      y = -C(p[0]) * 3;
+      yy = y - C(p[1]) * 4;
+
       // Update note
-      f.frequency.setValueAtTime(
+      oscillators.forEach((oscillator, index) => {
+        const nextFrequency = getFrequency(y, index + 1);
+        oscillator.frequency.cancelScheduledValues(a.currentTime);
+        oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
+      });
+      lowpassFilterNode.frequency.setValueAtTime(
         (0.05 * Math.abs(p[3]) * a.sampleRate) / 2,
         a.currentTime
       );
-      f.Q.setValueAtTime(10 + p[1], a.currentTime);
-      m.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
-      g.gain.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      lowpassFilterNode.Q.setValueAtTime(10 + p[1], a.currentTime);
+      lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      volumeNode.gain.setValueAtTime(Math.abs(p[3]), a.currentTime);
 
       // Render the frame on framebuffer
       gl.bindFramebuffer(F, textures[frame % 2][1]);
@@ -213,15 +300,7 @@ run = () =>
 
       gl.uniform1f(gl.getUniformLocation(program, "v"), now);
       gl.uniform2f(gl.getUniformLocation(program, "d"), w, h);
-      x = S(p[0]) * 3;
-      y = -C(p[0]) * 3;
-      gl.uniform4f(
-        gl.getUniformLocation(program, "m"),
-        x,
-        y,
-        x + S(p[1]) * 4,
-        y - C(p[1]) * 4
-      );
+      gl.uniform4f(gl.getUniformLocation(program, "m"), x, y, xx, yy);
 
       // Draw to frame buffer texture
       gl.drawArrays(5, 0, 4);
@@ -257,3 +336,4 @@ run = () =>
 
     window.requestAnimationFrame(render);
   });
+};
