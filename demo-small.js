@@ -8,51 +8,51 @@ run = () => {
   a = new AudioContext();
 
   // FFT
-  const analyser = a.createAnalyser();
-  analyser.connect(a.destination);
-  analyser.smoothingTimeConstant = 0.75;
+  // const analyser = a.createAnalyser();
+  // analyser.connect(a.destination);
+  // analyser.smoothingTimeConstant = 0.75;
   // analyser.fftSize = 128;
 
   // ADSR
-  adsrGainNode = a.createGain();
-  adsrGainNode.gain.value = 0.0;
+  let adsrGainNode = a.createGain();
+  adsrGainNode.gain.value = 0.5;
 
   // Delay
-  delayNode = a.createDelay();
+  let delayNode = a.createDelay();
   delayNode.delayTime.value = 0.5;
   delayFeedbackGainNode = a.createGain();
   delayFeedbackGainNode.gain.value = 0.5;
 
   // Master volume
-  volumeNode = a.createGain();
+  let volumeNode = a.createGain();
   volumeNode.gain.value = 0.2;
   volumeNode.gain.linearRampToValueAtTime(0.8, a.currentTime + 2);
   volumeNode.gain.setValueAtTime(0.8, a.currentTime + 20);
   volumeNode.gain.linearRampToValueAtTime(0, a.currentTime + 30);
 
   // Lowpass filter
-  lowpassFilterNode = a.createBiquadFilter();
+  let lowpassFilterNode = a.createBiquadFilter();
   lowpassFilterNode.type = "lowpass";
-  lowpassFilterNode.frequency.value = (0.8 * a.sampleRate) / 2;
-  lowpassFilterNode.Q.value = 0;
+  // lowpassFilterNode.frequency.value = (0.8 * a.sampleRate) / 2;
+  // lowpassFilterNode.Q.value = 0;
 
   // LFO
-  lfo = a.createOscillator();
+  let lfo = a.createOscillator();
   lfo.frequency.value = 6;
   lfo.start();
   lfoGainNode = a.createGain();
   lfoGainNode.gain.value = 5;
   lfo.connect(lfoGainNode);
 
-  adsr = {
-    a: 0.05,
-    d: 0.0,
-    s: 0.6,
-    r: 0.58,
-  };
+  // adsr = {
+  //   a: 0.05,
+  //   d: 0.0,
+  //   s: 0.6,
+  //   r: 0.58,
+  // };
 
   // Oscilators: [octave, detune]
-  bank1 = [
+  let bank1 = [
     [4, 0, "sawtooth", 1.0],
     [3, 0, "triangle", 0.8],
   ].map(([octave, detune, shape]) => {
@@ -70,7 +70,7 @@ run = () => {
   });
 
   // Connections:
-  // OSC - -> LFO - - > ADSR - - - > Lowpass -> Volume -> Destination
+  // OSC - -> LFO - - > ADSR - - - > Lowpass -> Volume -> FFT -> Destination
   //                     v                ^
   //                     Delay <-> Feedback
   adsrGainNode.connect(lowpassFilterNode);
@@ -79,92 +79,94 @@ run = () => {
   delayFeedbackGainNode.connect(delayNode);
   delayFeedbackGainNode.connect(lowpassFilterNode);
   lowpassFilterNode.connect(volumeNode);
-  volumeNode.connect(analyser);
+  volumeNode.connect(a.destination);
 
-  pitch = 0;
+  // pitch = 0;
 
-  getFrequency = (note, baseOctave) => {
-    const baseFrequency = 440; // A4
-    const pitchMultiplier = P(2, pitch / 12);
-    const n = note + (baseOctave - 4) * 12;
-    return baseFrequency * P(2, n / 12) * pitchMultiplier;
-  };
+  // getFrequency = (note, baseOctave) => {
+  //   const baseFrequency = 440; // A4
+  //   const pitchMultiplier = P(2, pitch / 12);
+  //   const n = note + (baseOctave - 4) * 12;
+  //   return baseFrequency * P(2, n / 12) * pitchMultiplier;
+  // };
 
-  playNote = (note, duration) => {
-    adsrGainNode.gain.cancelScheduledValues(a.currentTime);
-    delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime);
+  // playNote = (note, duration) => {
+  //   adsrGainNode.gain.cancelScheduledValues(a.currentTime);
+  //   delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime);
 
-    bank1.forEach(([oscillator, octave]) => {
-      const nextFrequency = getFrequency(note, octave);
-      oscillator.frequency.cancelScheduledValues(a.currentTime);
-      oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
-    });
+  //   bank1.forEach(([oscillator, octave]) => {
+  //     const nextFrequency = getFrequency(note, octave);
+  //     oscillator.frequency.cancelScheduledValues(a.currentTime);
+  //     oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
+  //   });
 
-    adsrGainNode.gain.setValueAtTime(0, a.currentTime);
-    adsrGainNode.gain.linearRampToValueAtTime(1, a.currentTime + adsr.a);
-    adsrGainNode.gain.setTargetAtTime(adsr.s, a.currentTime + adsr.a, adsr.d);
+  //   adsrGainNode.gain.setValueAtTime(0, a.currentTime);
+  //   adsrGainNode.gain.linearRampToValueAtTime(1, a.currentTime + adsr.a);
+  //   adsrGainNode.gain.setTargetAtTime(adsr.s, a.currentTime + adsr.a, adsr.d);
 
-    setTimeout(() => {
-      adsrGainNode.gain.cancelScheduledValues(a.currentTime + duration);
-      delayFeedbackGainNode.gain.cancelScheduledValues(
-        a.currentTime + duration
-      );
-      adsrGainNode.gain.setValueAtTime(adsrGainNode.gain.value, a.currentTime);
-      adsrGainNode.gain.linearRampToValueAtTime(0.0, a.currentTime + adsr.r);
-    }, duration);
-  };
+  //   setTimeout(() => {
+  //     adsrGainNode.gain.cancelScheduledValues(a.currentTime + duration);
+  //     delayFeedbackGainNode.gain.cancelScheduledValues(
+  //       a.currentTime + duration
+  //     );
+  //     adsrGainNode.gain.setValueAtTime(adsrGainNode.gain.value, a.currentTime);
+  //     adsrGainNode.gain.linearRampToValueAtTime(0.0, a.currentTime + adsr.r);
+  //   }, duration);
+  // };
 
   // major = [-9, -7, -5, -4, -2, 0, 2, 3, 5, 7, 8, 10, 12, 14];
-  music = [
-    0,
-    8,
-    -7,
-    -4,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    -2,
-    2,
-    3,
-    -9,
-    -5,
-    0,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-    ,
-  ];
-  bpm = 120;
-  halfbeat = 60000 / bpm / 2;
+  // music = [
+  //   0,
+  //   8,
+  //   -7,
+  //   -4,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   -2,
+  //   2,
+  //   3,
+  //   -9,
+  //   -5,
+  //   0,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  //   ,
+  // ];
+  // bpm = 80;
+  // halfbeat = 60000 / bpm / 2;
 
+  // index = 0;
   // setInterval(() => {
-  //   if (Math.random() > 0.1) {
-  //     playNote(major[Math.floor(Math.random() * major.length)], halfbeat);
+  //   if (Math.random() > 0.7) {
+  //     playNote(major[index % major.length], halfbeat);
   //   }
+  //   ++index;
   // }, halfbeat);
 
-  let index = 0;
-  setInterval(() => {
-    if (music[index % music.length] !== undefined) {
-      playNote(music[index % music.length], halfbeat);
-    }
-    ++index;
-  }, halfbeat);
+  // let index = 0;
+  // setInterval(() => {
+  //   if (music[index % music.length] !== undefined) {
+  //     playNote(music[index % music.length], halfbeat);
+  //   }
+  //   ++index;
+  // }, halfbeat);
 
   return document.documentElement.requestFullscreen().then(() => {
     e = performance.now();
@@ -305,12 +307,18 @@ run = () => {
       yy = y - C(p[1]) * 4;
 
       // Update note
-      // lowpassFilterNode.frequency.setValueAtTime(
-      //   (0.05 * Math.abs(p[3]) * a.sampleRate) / 2,
-      //   a.currentTime
-      // );
-      // lowpassFilterNode.Q.setValueAtTime(10 + 10 * S(p[1]), a.currentTime);
-      // lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      bank1[0][0].frequency.setValueAtTime((3 + y) * 27.5, a.currentTime);
+      bank1[1][0].frequency.setValueAtTime(
+        ((14 + yy) / 7) * 220,
+        a.currentTime
+      );
+
+      lowpassFilterNode.frequency.setValueAtTime(
+        (0.15 * Math.abs(p[3]) * a.sampleRate) / 2,
+        a.currentTime
+      );
+      lowpassFilterNode.Q.setValueAtTime(10 + 10 * S(p[1]), a.currentTime);
+      lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
       // volumeNode.gain.setValueAtTime(Math.abs(p[3]), a.currentTime);
       // volumeNode.gain.setValueAtTime((3 + y) / 6, a.currentTime);
 
