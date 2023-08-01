@@ -25,7 +25,8 @@ run = () => {
 
   // Master volume
   volumeNode = a.createGain();
-  volumeNode.gain.value = 0.8;
+  volumeNode.gain.value = 0.2;
+  volumeNode.gain.linearRampToValueAtTime(0.8, a.currentTime + 2);
   volumeNode.gain.setValueAtTime(0.8, a.currentTime + 20);
   volumeNode.gain.linearRampToValueAtTime(0, a.currentTime + 30);
 
@@ -51,9 +52,9 @@ run = () => {
   };
 
   // Oscilators: [octave, detune]
-  oscillators = [
-    [4, 0, "sawtooth", 0.5],
-    [4, 0, "triangle", 1.0],
+  bank1 = [
+    [4, 0, "sawtooth", 1.0],
+    [3, 0, "triangle", 0.8],
   ].map(([octave, detune, shape]) => {
     o = new OscillatorNode(a);
     o.type = shape;
@@ -93,7 +94,7 @@ run = () => {
     adsrGainNode.gain.cancelScheduledValues(a.currentTime);
     delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime);
 
-    oscillators.forEach(([oscillator, octave]) => {
+    bank1.forEach(([oscillator, octave]) => {
       const nextFrequency = getFrequency(note, octave);
       oscillator.frequency.cancelScheduledValues(a.currentTime);
       oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
@@ -113,6 +114,7 @@ run = () => {
     }, duration);
   };
 
+  // major = [-9, -7, -5, -4, -2, 0, 2, 3, 5, 7, 8, 10, 12, 14];
   music = [
     0,
     8,
@@ -132,8 +134,8 @@ run = () => {
     2,
     3,
     -9,
-    -9,
-    -9,
+    -5,
+    0,
     ,
     ,
     ,
@@ -149,6 +151,12 @@ run = () => {
   ];
   bpm = 120;
   halfbeat = 60000 / bpm / 2;
+
+  // setInterval(() => {
+  //   if (Math.random() > 0.1) {
+  //     playNote(major[Math.floor(Math.random() * major.length)], halfbeat);
+  //   }
+  // }, halfbeat);
 
   let index = 0;
   setInterval(() => {
