@@ -19,57 +19,53 @@ run = () => {
 
   // Delay
   delayNode = a.createDelay();
-  delayNode.delayTime.value = 0.4;
+  delayNode.delayTime.value = 0.5;
   delayFeedbackGainNode = a.createGain();
-  delayFeedbackGainNode.gain.value = 0.0;
+  delayFeedbackGainNode.gain.value = 0.5;
 
   // Master volume
   volumeNode = a.createGain();
   volumeNode.gain.value = 0.8;
+  volumeNode.gain.setValueAtTime(0.8, a.currentTime + 20);
+  volumeNode.gain.linearRampToValueAtTime(0, a.currentTime + 30);
 
   // Lowpass filter
   lowpassFilterNode = a.createBiquadFilter();
   lowpassFilterNode.type = "lowpass";
-  lowpassFilterNode.frequency.value = (0.1 * a.sampleRate) / 2;
-  lowpassFilterNode.Q.value = 10;
+  lowpassFilterNode.frequency.value = (0.8 * a.sampleRate) / 2;
+  lowpassFilterNode.Q.value = 0;
 
   // LFO
   lfo = a.createOscillator();
-  lfo.frequency.value = 5;
+  lfo.frequency.value = 6;
   lfo.start();
   lfoGainNode = a.createGain();
   lfoGainNode.gain.value = 5;
   lfo.connect(lfoGainNode);
 
+  adsr = {
+    a: 0.05,
+    d: 0.0,
+    s: 0.6,
+    r: 0.58,
+  };
+
   // Oscilators: [octave, detune]
   oscillators = [
-    [3, 0],
-    [2, 10],
-    [2, -10],
-  ].map(([octave, detune]) => {
+    [4, 0, "sawtooth", 0.5],
+    [4, 0, "triangle", 1.0],
+  ].map(([octave, detune, shape]) => {
     o = new OscillatorNode(a);
-    o.type = "sawtooth";
+    o.type = shape;
     o.frequency.value = 440 * P(2, octave - 4); // A
     o.detune.value = detune;
 
-    // oscGainNode = a.createGain();
-    // o.connect(oscGainNode);
-    // oscGainNode.connect(adsrGainNode);
     o.connect(adsrGainNode);
     lfoGainNode.connect(o.frequency);
 
-    // A C F G
-    // notes = [440, 523.25, 349.23, 392.0];
-    // for (let i = 0; i < 100; i++) {
-    //   o.frequency.setValueAtTime(
-    //     440 * P(2, octave - 4),
-    //     a.currentTime
-    //   );
-    // }
-
     o.start();
 
-    return o;
+    return [o, octave];
   });
 
   // Connections:
@@ -88,22 +84,16 @@ run = () => {
 
   getFrequency = (note, baseOctave) => {
     const baseFrequency = 440; // A4
-    const pitchMultiplier = Math.pow(2, pitch / 12);
+    const pitchMultiplier = P(2, pitch / 12);
     const n = note + (baseOctave - 4) * 12;
-    return baseFrequency * Math.pow(2, n / 12) * pitchMultiplier;
+    return baseFrequency * P(2, n / 12) * pitchMultiplier;
   };
 
-  playNote = (note, octave, duration) => {
+  playNote = (note, duration) => {
     adsrGainNode.gain.cancelScheduledValues(a.currentTime);
     delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime);
-    adsr = {
-      a: 0.1,
-      d: 0.2,
-      s: 0.3,
-      r: 0.4,
-    };
 
-    oscillators.forEach((oscillator) => {
+    oscillators.forEach(([oscillator, octave]) => {
       const nextFrequency = getFrequency(note, octave);
       oscillator.frequency.cancelScheduledValues(a.currentTime);
       oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
@@ -113,22 +103,60 @@ run = () => {
     adsrGainNode.gain.linearRampToValueAtTime(1, a.currentTime + adsr.a);
     adsrGainNode.gain.setTargetAtTime(adsr.s, a.currentTime + adsr.a, adsr.d);
 
-    // adsrGainNode.gain.cancelScheduledValues(a.currentTime + duration);
-    // delayFeedbackGainNode.gain.cancelScheduledValues(a.currentTime + duration);
-    adsrGainNode.gain.setValueAtTime(
-      adsrGainNode.gain.value,
-      a.currentTime + duration
-    );
-    adsrGainNode.gain.linearRampToValueAtTime(
-      0,
-      a.currentTime + duration + adsr.r
-    );
+    setTimeout(() => {
+      adsrGainNode.gain.cancelScheduledValues(a.currentTime + duration);
+      delayFeedbackGainNode.gain.cancelScheduledValues(
+        a.currentTime + duration
+      );
+      adsrGainNode.gain.setValueAtTime(adsrGainNode.gain.value, a.currentTime);
+      adsrGainNode.gain.linearRampToValueAtTime(0.0, a.currentTime + adsr.r);
+    }, duration);
   };
 
-  // setInterval(() => {
-  //   playNote(Math.floor(y), 2, 0.1);
-  //   ++note;
-  // }, 100);
+  music = [
+    0,
+    8,
+    -7,
+    -4,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    -2,
+    2,
+    3,
+    -9,
+    -9,
+    -9,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+    ,
+  ];
+  bpm = 120;
+  halfbeat = 60000 / bpm / 2;
+
+  let index = 0;
+  setInterval(() => {
+    if (music[index % music.length] !== undefined) {
+      playNote(music[index % music.length], halfbeat);
+    }
+    ++index;
+  }, halfbeat);
 
   return document.documentElement.requestFullscreen().then(() => {
     e = performance.now();
@@ -180,7 +208,7 @@ run = () => {
     shader = gl.createShader(0x8b30);
     gl.shaderSource(
       shader,
-      `precision highp float;uniform vec2 f;uniform sampler2D z,t;void main(){vec2 d=gl_FragCoord.xy/f;vec3 v=mix(texture2D(z,d).xyz,texture2D(t,d).xyz,.25);v*=.5+.5*pow(32.*d.x*d.y*(1.-d.x)*(1.-d.y),.5);gl_FragColor=vec4(v,1);}`
+      `precision highp float;uniform float f;uniform vec2 h;uniform sampler2D z,t;void main(){vec2 v=gl_FragCoord.xy/h;vec3 u=mix(texture2D(z,v).xyz,texture2D(t,v).xyz,.25);float m=f<3e4?0.:(f-3e4)/1e4;u*=.5+(.5+m)*pow(32.*v.x*v.y*(1.-v.x)*(1.-v.y),.5);u+=m*vec3(1);gl_FragColor=vec4(u,1);}`
     );
     gl.compileShader(shader);
     gl.attachShader(effectsProgram, shader);
@@ -235,8 +263,12 @@ run = () => {
         (10 * S(angle1)) / 3;
       f2 = A2 * P(angularVelocity1, 2) * S(angle1 - angle2) - 2.5 * S(angle2);
 
-      g1 = (f1 - a1 * f2) / (1 - a1 * a2);
-      g2 = (f2 - a2 * f1) / (1 - a1 * a2);
+      g1 =
+        (now > 2e4 ? -0.5 : 0) * angularVelocity1 +
+        (f1 - a1 * f2) / (1 - a1 * a2);
+      g2 =
+        (now > 2e4 ? -0.5 : 0) * angularVelocity1 +
+        (f2 - a2 * f1) / (1 - a1 * a2);
 
       return [angularVelocity1, angularVelocity2, g1, g2];
     };
@@ -245,6 +277,7 @@ run = () => {
       now = performance.now() - e;
       dt = (now - t) / 1e3;
       t = now;
+      if (now > 35e3) return document.exitFullscreen();
 
       // Update pendulum
 
@@ -264,18 +297,14 @@ run = () => {
       yy = y - C(p[1]) * 4;
 
       // Update note
-      oscillators.forEach((oscillator, index) => {
-        const nextFrequency = getFrequency(y, index + 1);
-        oscillator.frequency.cancelScheduledValues(a.currentTime);
-        oscillator.frequency.setValueAtTime(nextFrequency, a.currentTime);
-      });
-      lowpassFilterNode.frequency.setValueAtTime(
-        (0.05 * Math.abs(p[3]) * a.sampleRate) / 2,
-        a.currentTime
-      );
-      lowpassFilterNode.Q.setValueAtTime(10 + p[1], a.currentTime);
-      lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
-      volumeNode.gain.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      // lowpassFilterNode.frequency.setValueAtTime(
+      //   (0.05 * Math.abs(p[3]) * a.sampleRate) / 2,
+      //   a.currentTime
+      // );
+      // lowpassFilterNode.Q.setValueAtTime(10 + 10 * S(p[1]), a.currentTime);
+      // lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      // volumeNode.gain.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      // volumeNode.gain.setValueAtTime((3 + y) / 6, a.currentTime);
 
       // Render the frame on framebuffer
       gl.bindFramebuffer(F, textures[frame % 2][1]);
@@ -318,7 +347,8 @@ run = () => {
       gl.uniform1i(gl.getUniformLocation(effectsProgram, "u_texture0"), 0);
       gl.uniform1i(gl.getUniformLocation(effectsProgram, "u_texture1"), 1);
 
-      gl.uniform2f(gl.getUniformLocation(effectsProgram, "f"), w, h);
+      gl.uniform1f(gl.getUniformLocation(effectsProgram, "f"), now);
+      gl.uniform2f(gl.getUniformLocation(effectsProgram, "h"), w, h);
       gl.uniform1i(gl.getUniformLocation(effectsProgram, "z"), 0);
       gl.uniform1i(gl.getUniformLocation(effectsProgram, "t"), 1);
 
