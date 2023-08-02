@@ -350,5 +350,9 @@ void main() {
 
   color = smoothstep(0.0, 1.0, color);
 
+  if (u_time < 1000.) {
+    color = mix(color, vec3(0.), (1000. - u_time) / 1000.);
+  }
+
   gl_FragColor = vec4(color, 1.0);
 }
