@@ -25,9 +25,9 @@ run = () => {
 
   // Master volume
   let volumeNode = a.createGain();
-  volumeNode.gain.value = 0.2;
-  volumeNode.gain.linearRampToValueAtTime(0.8, a.currentTime + 2);
-  volumeNode.gain.setValueAtTime(0.8, a.currentTime + 20);
+  // volumeNode.gain.value = 0.0;
+  // volumeNode.gain.linearRampToValueAtTime(0.8, a.currentTime + 4);
+  // volumeNode.gain.setValueAtTime(0.8, a.currentTime + 20);
   volumeNode.gain.linearRampToValueAtTime(0, a.currentTime + 30);
 
   // Lowpass filter
@@ -37,12 +37,50 @@ run = () => {
   // lowpassFilterNode.Q.value = 0;
 
   // LFO
-  let lfo = a.createOscillator();
-  lfo.frequency.value = 6;
-  lfo.start();
-  lfoGainNode = a.createGain();
-  lfoGainNode.gain.value = 5;
-  lfo.connect(lfoGainNode);
+  // let lfo = a.createOscillator();
+  // lfo.frequency.value = 6;
+  // lfo.start();
+  // lfoGainNode = a.createGain();
+  // lfoGainNode.gain.value = 5;
+  // lfo.connect(lfoGainNode);
+
+  // Pink noise
+  const bufferSize = a.sampleRate * 2; // 2 seconds of audio
+  const noiseBuffer = a.createBuffer(1, bufferSize, a.sampleRate);
+
+  // Based on https://noisehack.com/generate-noise-web-audio-api/
+  // which in turn is based on "Paul Kellet’s refined method", now 404
+  const b = [0, 0, 0, 0, 0, 0, 0];
+  const channelData = noiseBuffer.getChannelData(0);
+
+  for (let i = 0; i < bufferSize; i++) {
+    const white = Math.random() * 2 - 1;
+
+    b[0] = 0.99886 * b[0] + white * 0.0555179;
+    b[1] = 0.99332 * b[1] + white * 0.0750759;
+    b[2] = 0.969 * b[2] + white * 0.153852;
+    b[3] = 0.8665 * b[3] + white * 0.3104856;
+    b[4] = 0.55 * b[4] + white * 0.5329522;
+    b[5] = -0.7616 * b[5] - white * 0.016898;
+
+    channelData[i] =
+      b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + white * 0.5362;
+    channelData[i] *= 0.11; // (roughly) compensate for gain
+    b[6] = white * 0.115926;
+  }
+
+  // Connect the noise buffer to the filter
+  const noiseGeneratorNode = a.createBufferSource();
+  noiseGeneratorNode.buffer = noiseBuffer;
+  noiseGeneratorNode.loop = true;
+
+  // Gain node to control volume
+  const noiseGainNode = a.createGain();
+  noiseGainNode.gain.value = 0.5;
+  noiseGainNode.connect(lowpassFilterNode);
+  // lfoGainNode.connect(noiseGainNode);
+  noiseGeneratorNode.connect(noiseGainNode);
+  noiseGeneratorNode.start();
 
   // adsr = {
   //   a: 0.05,
@@ -52,22 +90,22 @@ run = () => {
   // };
 
   // Oscilators: [octave, detune]
-  let bank1 = [
-    [4, 0, "sawtooth", 1.0],
-    [3, 0, "triangle", 0.8],
-  ].map(([octave, detune, shape]) => {
-    o = new OscillatorNode(a);
-    o.type = shape;
-    o.frequency.value = 440 * P(2, octave - 4); // A
-    o.detune.value = detune;
+  // let bank1 = [
+  //   [4, 0, "sawtooth", 1.0],
+  //   [3, 0, "triangle", 0.8],
+  // ].map(([octave, detune, shape]) => {
+  //   o = new OscillatorNode(a);
+  //   o.type = shape;
+  //   o.frequency.value = 440 * P(2, octave - 4); // A
+  //   o.detune.value = detune;
 
-    o.connect(adsrGainNode);
-    lfoGainNode.connect(o.frequency);
+  //   o.connect(adsrGainNode);
+  //   lfoGainNode.connect(o.frequency);
 
-    o.start();
+  //   o.start();
 
-    return [o, octave];
-  });
+  //   return [o, octave];
+  // });
 
   // Connections:
   // OSC - -> LFO - - > ADSR - - - > Lowpass -> Volume -> FFT -> Destination
@@ -307,19 +345,24 @@ run = () => {
       yy = y - C(p[1]) * 4;
 
       // Update note
-      bank1[0][0].frequency.setValueAtTime((3 + y) * 27.5, a.currentTime);
-      bank1[1][0].frequency.setValueAtTime(
-        ((14 + yy) / 7) * 220,
-        a.currentTime
-      );
+      // bank1[0][0].frequency.setValueAtTime((3 + y) * 27.5, a.currentTime);
+      // bank1[1][0].frequency.setValueAtTime(
+      //   ((14 + yy) / 7) * 220,
+      //   a.currentTime
+      // );
 
       lowpassFilterNode.frequency.setValueAtTime(
-        (0.15 * Math.abs(p[3]) * a.sampleRate) / 2,
+        (0.01 * Math.abs(p[3]) * a.sampleRate) / 2,
         a.currentTime
       );
       lowpassFilterNode.Q.setValueAtTime(10 + 10 * S(p[1]), a.currentTime);
-      lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
-      // volumeNode.gain.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      // lfo.frequency.setValueAtTime(Math.abs(p[3]), a.currentTime);
+      // if (now < 29500) {
+      //   volumeNode.gain.setValueAtTime(
+      //     Math.sqrt(Math.abs(p[3] / 2)),
+      //     a.currentTime
+      //   );
+      // }
       // volumeNode.gain.setValueAtTime((3 + y) / 6, a.currentTime);
 
       // Render the frame on framebuffer
