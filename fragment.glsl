@@ -153,7 +153,7 @@ Surface scene(in vec3 p) {
       Surface(2, sdSphere(p - vec3(5.0), 5.0),
               Material(vec3(0.5), vec3(0.5), vec3(0.5), 50.0, 0.5));
   Surface sphere2 = Surface(
-      3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 3.0),
+      3, sdSphere(p - vec3(-2.0, 2.0, -3.0), 2.5),
       Material(vec3(1.0, 0.3, 0.2), vec3(0.9, 0.5, 0.5), vec3(0.9), 50.0, 0.3));
 
   Surface box1 =
@@ -266,9 +266,7 @@ Ray rayMarch(in vec3 camera, in vec3 rayDir) {
   return result;
 }
 
-vec3 render(in vec3 camera, in vec3 rayDir) {
-  vec3 sun = normalize(vec3(0.0, 10.0, u_time / 500.));
-
+vec3 render(vec3 camera, vec3 rayDir, vec3 sun) {
   vec3 color = vec3(0.0);
   float reflection = 1.0;
   vec3 dir = rayDir;
@@ -331,11 +329,11 @@ void main() {
 
   float speed = 250.;
 
-  vec3 camera = vec3(-20. + 20. * sin(u_time / (20. * speed)),
+  vec3 camera = vec3(-10. + 20. * sin(u_time / (20. * speed)),
                      4. + sin(u_time / (10. * speed)),
                      -20. + 20. * cos(u_time / (20. * speed)));
-
-  vec3 target = vec3(0, 5, 0);
+  vec3 target = vec3(0., 5. + cos(u_time / (20. * speed)), 0.);
+  vec3 sun = normalize(vec3(u_time / -700., 10.0, u_time / 500.));
 
   // mat4 viewToWorld = lookAt(camera, target,
   //                           normalize(vec3(1. - sin(u_time / (10. * speed)),
@@ -344,7 +342,7 @@ void main() {
   mat4 viewToWorld = lookAt(camera, target, normalize(vec3(0., 1., 0.)));
   vec3 worldDir = (viewToWorld * vec4(viewDir, 0.0)).xyz;
 
-  vec3 color = render(camera, worldDir);
+  vec3 color = render(camera, worldDir, sun);
 
   color = pow(color, COLOR_SHIFT);
   color *= vec3(1.02, 0.99, 0.9);

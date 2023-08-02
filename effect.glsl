@@ -13,7 +13,7 @@ void main() {
   vec3 color = mix(current, previous, 0.25);
 
   // Burn effect
-  float burn = u_time < 30000. ? 0. : (u_time - 30000.) / 5000.;
+  float burn = u_time < 40000. ? 0. : (u_time - 40000.) / 7000.;
   color *= 0.5 + (0.5 + burn) *
                      pow(32.0 * p.x * p.y * (1.0 - p.x) * (1.0 - p.y), 0.5);
   color += burn * vec3(1.);
