@@ -1,3 +1,4 @@
 fragment.min.glsl
 node_modules
 .DS_Store
+demo.min.js

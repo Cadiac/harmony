@@ -5,7 +5,7 @@
   "main": "demo.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "serve": "npx serve .",
+    "serve": "npx serve src/",
     "build": "npx uglify-js --compress --mangle --mangle-props --toplevel  -- demo-small.js > demo.min.js",
     "compress": "node compress.js"
   },
