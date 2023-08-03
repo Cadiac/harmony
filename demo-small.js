@@ -3,6 +3,13 @@ S = Math.sin;
 P = Math.pow;
 
 run = () => {
+  H = 0;
+  document.addEventListener(
+    "keydown",
+    (e) => e.key === "Escape" && (H = 1),
+    true
+  );
+
   // Initialize synth, needs to be done here with the click event
   // Synth
   a = new AudioContext();
@@ -10,8 +17,8 @@ run = () => {
   // Master volume
   let volumeNode = a.createGain();
   volumeNode.gain.value = 0;
+  volumeNode.gain.linearRampToValueAtTime(0.0, a.currentTime + 2);
   volumeNode.gain.linearRampToValueAtTime(0.8, a.currentTime + 6);
-  volumeNode.gain.linearRampToValueAtTime(0.5, a.currentTime + 10);
   volumeNode.gain.linearRampToValueAtTime(0.8, a.currentTime + 22);
   volumeNode.gain.linearRampToValueAtTime(0, a.currentTime + 42);
 
@@ -187,7 +194,10 @@ run = () => {
       now = performance.now() - e;
       dt = (now - t) / 1e3;
       t = now;
-      if (now > 45e3) return document.exitFullscreen();
+      if (t > 45e3 || H) {
+        volumeNode.disconnect();
+        return document.exitFullscreen();
+      }
 
       // Update pendulum
 
@@ -204,11 +214,11 @@ run = () => {
       x = S(p[0]) * 3;
       y = -C(p[0]) * 3;
 
-      // lowpassFilterNode.frequency.setValueAtTime(
-      //   (0.01 * Math.abs(p[3]) * a.sampleRate) / 2,
-      //   a.currentTime
-      // );
-      lowpassFilterNode.Q.setValueAtTime(15 + 15 * S(p[1]), a.currentTime);
+      lowpassFilterNode.frequency.setValueAtTime(
+        (0.01 * Math.abs(p[3]) * a.sampleRate) / 2,
+        a.currentTime
+      );
+      lowpassFilterNode.Q.setValueAtTime(12 + 12 * S(p[1]), a.currentTime);
 
       // Render the frame on framebuffer
       gl.bindFramebuffer(F, textures[frame % 2][1]);
