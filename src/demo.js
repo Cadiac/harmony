@@ -1,3 +1,5 @@
+// The original demo javascript file before I started working on demo-small.js.
+
 function createOscillator(audioContext, octave, detune, destination) {
   const oscillator = new OscillatorNode(audioContext);
   oscillator.type = "sawtooth";
