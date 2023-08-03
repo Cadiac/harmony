@@ -1,6 +1,7 @@
 Entry name: Chaos in Harmony
 Code & Sounds: Cadiac
-Tools: JavaScript, WebGL, Shader Minifier (http://www.ctrl-alt-test.fr), UglifyJS (https://github.com/mishoo/UglifyJS), demolishedCompressor (https://github.com/MagnusThor/demolishedcompressor)
+Tools: JavaScript, WebGL, Shader Minifier (http://www.ctrl-alt-test.fr), UglifyJS (https://github.com/mishoo/UglifyJS),
+demolishedCompressor (https://github.com/MagnusThor/demolishedcompressor)
 
 First released at Assembly Summer 2023.
 
@@ -13,6 +14,8 @@ On windows, for example:
 Or host the file locally, for instance with a minimal python3 server
 $ python3 -m http.server
 
-and open http://localhost:8000/harmony.html on the browser. This bypasses the need for CORS-security settings override.
+and open http://localhost:8000/harmony.html on the browser. This bypasses the need for CORS-security
+settings override.
 
-Click to start the demo. It should automatically enter full screen mode and start after 2 second delay, and exit it once the demo is complete.
+Click to start the demo. It should automatically enter full screen mode and start after 2 second delay,
+and exit it once the demo is complete.
