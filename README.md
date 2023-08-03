@@ -1,6 +1,6 @@
 # Chaos in Harmony - 4k intro
 
-![Screenshot](https://github.com/cadiac/heiluri/raw/master/entry/screenshot.jpg)
+![Screenshot](https://github.com/Cadiac/heiluri/blob/main/entry/screenshot.png)
 
 First released at Assembly Summer 2023.
 
