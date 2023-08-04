@@ -6,7 +6,11 @@ First released at Assembly Summer 2023, being my first 4k intro.
 
 Tools: JavaScript, WebGL, [Shader Minifier](http://www.ctrl-alt-test.fr), [UglifyJS](https://github.com/mishoo/UglifyJS), [demolishedCompressor](https://github.com/MagnusThor/demolishedcompressor)
 
-## How to run:
+## Online version
+
+https://harmony.cadi.ac/
+
+## Running locally
 
 Open `entry/harmony.html` in Chrome or Safari in fullscreen mode with the CORS-security settings disabled.
 
