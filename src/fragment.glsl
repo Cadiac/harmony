@@ -32,11 +32,38 @@ struct Ray {
   bool h;
 };
 
+/**
+ * The following functions and raymarching algorithms are derived from iq's
+ * website, published under MIT license:
+ * - https://iquilezles.org/articles/distfunctions/ - sdBox, sdSphere,
+ * sdCapsule, opUnion
+ * - https://iquilezles.org/articles/morenoise/ - hash1, fbm
+ * - https://iquilezles.org/articles/fbm/ - fbm
+ * - https://iquilezles.org/articles/rmshadows/ - softShadows
+ * - https://iquilezles.org/articles/raymarchingdf/ - lightning and raymarching
+ * algorithms
+ *
+ * The MIT License
+ * Copyright © 2019 Inigo Quilez
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions: The above copyright
+ * notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
+ * WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+ * TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+ * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+ * THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
 // Noise functions
-// Taken from IQ, https://iquilezles.org/, MIT
 float hash1(float n) { return fract(n * 17.0 * fract(n * 0.3183099)); }
 
-// Taken from IQ, https://iquilezles.org/, MIT
 float noise(in vec3 x) {
   vec3 p = floor(x);
   vec3 w = fract(x);
@@ -66,7 +93,6 @@ float noise(in vec3 x) {
                        k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z);
 }
 
-// Taken from IQ, https://iquilezles.org/, MIT
 float fbm(in vec3 x) {
   float f = 2.0;
   float s = 0.5;
@@ -81,7 +107,7 @@ float fbm(in vec3 x) {
   return a;
 }
 
-// Translations
+// Rotations
 // http://en.wikipedia.org/wiki/Rotation_matrix#Basic_rotations
 mat3 tRotateX(float theta) {
   float s = sin(theta);
@@ -104,17 +130,14 @@ mat3 tRotateZ(float theta) {
   return mat3(vec3(c, -s, 0), vec3(s, c, 0), vec3(0, 0, 1));
 }
 
-// https://iquilezles.org/articles/distfunctions/, MIT
 float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
   vec3 pa = p - a, ba = b - a;
   float h = clamp(dot(pa, ba) / dot(ba, ba), .0, 1.);
   return length(pa - ba * h) - r;
 }
 
-// https://iquilezles.org/articles/distfunctions/, MIT
 float sdSphere(vec3 p, float s) { return length(p) - s; }
 
-// https://iquilezles.org/articles/distfunctions/, MIT
 float sdBox(vec3 p, vec3 b) {
   vec3 q = abs(p) - b;
   return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
@@ -292,7 +315,7 @@ vec3 render(vec3 camera, vec3 rayDir, vec3 sun) {
     } else if (ray.d.i == 3) {
       normal = normalize(ray.o - vec3(-1.0, 2.0, -3.0));
     } else {
-      // Tetrahedron technique, https://iquilezles.org/articles/normalsSDF/
+      // Tetrahedron technique, https://iquilezles.org/articles/normalsSDF/, MIT
       const vec2 k = vec2(1, -1);
       normal = normalize(k.xyy * scene(ray.o + k.xyy * EPSILON).d +
                          k.yyx * scene(ray.o + k.yyx * EPSILON).d +
