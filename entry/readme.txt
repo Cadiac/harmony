@@ -6,7 +6,7 @@ demolishedCompressor (https://github.com/MagnusThor/demolishedcompressor)
 First released at Assembly Summer 2023.
 
 How to run:
-Open harmony.html in Chrome or Safari in fullscreen mode with the CORS-security settings disabled.
+Open harmony.html in Chrome or Safari with the CORS-security settings disabled.
 
 On windows, for example:
 "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" --disable-web-security --user-data-dir=[some directory]
