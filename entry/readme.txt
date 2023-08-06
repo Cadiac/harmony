@@ -19,3 +19,5 @@ settings override.
 
 Click to start the demo. It should automatically enter full screen mode and start after 2 second delay,
 and exit it once the demo is complete.
+
+You can also find an online version hosted at https://harmony.cadi.ac
